@@ -1,7 +1,7 @@
 # TR Camera — Diretriz do projeto
 
 Bundle ID: **`com.trmedia.camera`** · Nome exibido: **TR Camera** · iOS mínimo **17.0** · iPhone · SwiftUI + AVFoundation + Core Image/Metal
-Estado em 07/11/2026: **Fases 1–3 completas, Fase 4 parcial, site pronto.** Compila sem warnings para iPhone físico; **29/29 testes passando** no simulador.
+Estado em 07/11/2026: **Fases 1–3 completas, Fase 4 parcial, site pronto.** Compila sem warnings para iPhone físico; **32/32 testes passando** no simulador.
 
 ---
 
@@ -86,6 +86,13 @@ cd site && npx vercel --prod
   Ou importe o repositório na Vercel com **Root Directory = `site`**, sem framework e sem build.
 - App Store Connect: *Privacy Policy URL* = `https://SEU-DOMINIO/privacidade`, *Support URL* = `/suporte`, rótulo de privacidade = **“Data Not Collected”**.
 
+### F12. Filtros criativos (looks) → `Core/Processing/VideoLook.swift`
+- 12 looks com filtros nativos do Core Image: Original, Vivid, Teal & Orange, Warm Film, Cool, Fade, Bleach, Vintage, Mono, Noir, Chrome e Dream.
+- **Ao vivo:** o chip **FILTRO** na barra superior abre uma faixa de looks sobre o preview. O filtro aparece só na visualização, e o arquivo é gravado limpo. O look usado fica registrado nos metadados como "somente preview".
+- **No vídeo:** na Biblioteca, **"Exportar cópia com filtro"** gera um novo `.mov` (HEVC, `AVVideoComposition` + `AVAssetExportSession`) com o look aplicado. **O original é mantido.**
+- O mesmo código aplica o look no preview e na exportação (o raio do Dream é proporcional à largura para manter o resultado igual).
+- Limitações: os looks foram pensados para material Rec.709. Em Log, use a LUT no preview. Gravar já com o filtro aplicado exige o pipeline `AVAssetWriter` (Fase 4).
+
 ---
 
 ## 3. Pendências que dependem de você
@@ -95,7 +102,7 @@ cd site && npx vercel --prod
 ## 4. Próximos passos (roadmap)
 | Fase | Item | Observação técnica |
 |---|---|---|
-| 4 | Pipeline `AVAssetWriter` opcional | Libera **bitrate manual** e **LUT gravada** (hoje inviável com `MovieFileOutput`) |
+| 4 | Pipeline `AVAssetWriter` opcional | Libera **bitrate manual**, **LUT gravada** e **filtro gravado ao vivo** (hoje inviável com `MovieFileOutput`) |
 | 4 | Modo Cinematográfico (iOS 26) e redução de ruído low light (iOS 27) | `isCinematicVideoCaptureSupported`, `lowLightVideoNoiseReduction*` |
 | 5 | Multicâmera (PiP / lado a lado / arquivos separados) | `AVCaptureMultiCamSession`, já detectado no perfil |
 | 5 | ProRes RAW, `AVProVideoStorage` (27), timecode, genlock | Exigem validação em hardware Pro |

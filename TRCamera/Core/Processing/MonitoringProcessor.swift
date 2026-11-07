@@ -116,6 +116,7 @@ final class MonitoringProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferD
         if let lut {
             image = image.applyingFilter("CIColorCube", parameters: ["inputCubeDimension": lut.dimension, "inputCubeData": lut.data])
         }
+        image = settings.look.apply(to: image)
         if settings.falseColorEnabled {
             image = Self.luma(image).applyingFilter("CIColorMap", parameters: ["inputGradientImage": falseColorGradient])
         }

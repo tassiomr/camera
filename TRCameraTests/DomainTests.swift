@@ -1,4 +1,5 @@
 import XCTest
+import CoreImage
 @testable import TRCamera
 
 /// Synthetic camera resembling a Pro back wide lens; no hardware needed.
@@ -262,5 +263,32 @@ final class StorageAndLUTTests: XCTestCase {
         XCTAssertEqual(s.luma.first, 1)
         XCTAssertEqual(s.luma.last, 1)
         XCTAssertEqual(s.clippedFraction, 0.5, accuracy: 0.001)
+    }
+}
+
+final class VideoLookTests: XCTestCase {
+    func testEveryLookKeepsExtentAndRenders() throws {
+        let source = CIImage(color: CIColor(red: 0.5, green: 0.4, blue: 0.3)).cropped(to: CGRect(x: 0, y: 0, width: 64, height: 36))
+        let context = CIContext()
+        for look in VideoLook.allCases {
+            let out = look.apply(to: source)
+            XCTAssertEqual(out.extent, source.extent, "\(look) changed the frame size")
+            XCTAssertNotNil(context.createCGImage(out, from: out.extent), "\(look) failed to render")
+        }
+    }
+
+    func testMonoRemovesColor() throws {
+        let source = CIImage(color: CIColor(red: 0.9, green: 0.2, blue: 0.1)).cropped(to: CGRect(x: 0, y: 0, width: 4, height: 4))
+        var px = [UInt8](repeating: 0, count: 4)
+        CIContext().render(VideoLook.mono.apply(to: source), toBitmap: &px, rowBytes: 4,
+                           bounds: CGRect(x: 1, y: 1, width: 1, height: 1), format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
+        XCTAssertLessThanOrEqual(abs(Int(px[0]) - Int(px[2])), 2)
+    }
+
+    func testLookMakesPreviewProcessed() {
+        var m = MonitoringSettings()
+        XCTAssertFalse(m.needsProcessedPreview)
+        m.look = .tealOrange
+        XCTAssertTrue(m.needsProcessedPreview)
     }
 }

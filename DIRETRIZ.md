@@ -93,6 +93,36 @@ npx vercel --prod
 - O mesmo código aplica o look no preview e na exportação (o raio do Dream é proporcional à largura para manter o resultado igual).
 - Limitações: os looks foram pensados para material Rec.709. Em Log, use a LUT no preview. Gravar já com o filtro aplicado exige o pipeline `AVAssetWriter` (Fase 4).
 
+### F13. Batidas da música → `Domain/BeatDetector.swift`, `Core/Audio/BeatTracker.swift`, `Core/Processing/BeatEffect.swift`
+- **Decisão de arquitetura:** o efeito **não é gravado no arquivo**. Para isso seria preciso trocar o `AVCaptureMovieFileOutput` por `AVAssetWriter`, o que traz mais risco de perder frames, mais aquecimento e efeitos irreversíveis no take. O fluxo tem duas etapas:
+  1. **Ao vivo (preview):** o chip **BATIDA** escolhe o efeito: Zoom punch, Flash, Punch + flash, Tremor ou RGB split. O áudio do microfone é analisado e o preview pulsa no ritmo, mostrando o BPM no chip. As batidas detectadas vão para o sidecar JSON (`beatMap`, `source: live`; tempos aproximados, com erro de cerca de 1 frame).
+  2. **Depois de gravado:** na Biblioteca, **"Editar no ritmo da música"** analisa o áudio do próprio arquivo, que é mais preciso porque o app conhece a faixa inteira. Gera uma cópia com o efeito em cada batida. **O original é mantido.**
+- **Algoritmo:** FFT do Accelerate (janela de 2048, hop de 512). Calcula o *spectral flux* em escala logarítmica, com peso na faixa do bumbo (30–250 Hz).
+  - O BPM vem da autocorrelação, entre 70 e 180 BPM, com soma harmônica para evitar ler metade do tempo.
+  - **Offline:** as batidas são posicionadas por programação dinâmica (Ellis 2007).
+  - **Ao vivo:** usa detecção de picos com limiar adaptativo e ignora os chimbais.
+- **Custo e segurança:**
+  - A saída de áudio só é adicionada à sessão quando o usuário liga a função; com ela desligada, nada muda.
+  - Não dá para ligar no meio de uma gravação.
+  - Se o iPhone recusar a saída de áudio, o app avisa e desliga a função.
+  - O flash é limitado a menos de 3 por segundo (diretriz de fotossensibilidade) e a +1 EV.
+- **Testes (`BeatTests.swift`):**
+  - Faixas sintéticas de 90 a 174 BPM, com chimbal no contratempo, ruído forte e áudio a 48 kHz.
+  - Silêncio e ruído branco não podem gerar batidas.
+  - Streaming independente do tamanho do buffer; custo de CPU (60 s de áudio processados em cerca de 1 s no simulador, em build debug).
+  - Exportação real em que o flash cai na batida e o original continua idêntico byte a byte.
+- **Limitações honestas:**
+  - O microfone em show (público, vento, AGC) vai errar algumas batidas. Por isso a edição final usa a análise do arquivo.
+  - Ao vivo, a detecção tem atraso de cerca de 20–40 ms.
+  - Músicas do Apple Music (DRM) não podem ser analisadas.
+  - Mudanças bruscas de andamento ainda não são acompanhadas, porque o tempo estimado é um só por clipe.
+  - **Validar no iPhone real:** se `canAddOutput` aceita a saída de áudio junto com a gravação em cada formato (sobretudo ProRes/Log), e a precisão com música ambiente.
+- **Próximos passos possíveis:**
+  - Escolher uma faixa do app Arquivos para sincronia exata antes de gravar.
+  - Intensidade ajustável.
+  - Trocar de look nos tempos fortes.
+  - Exportar em 1080p a partir de 4K para o zoom não perder nitidez.
+
 ---
 
 ## 3. Pendências que dependem de você

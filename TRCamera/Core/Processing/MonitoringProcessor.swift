@@ -26,7 +26,7 @@ struct ScopeData: Equatable {
 /// Core Image is used because every effect maps to a built-in GPU filter, avoiding
 /// custom kernels. The processor never touches the recording path: the movie file
 /// output receives the untouched sensor stream.
-final class MonitoringProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
+final class MonitoringProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
     let queue = DispatchQueue(label: "com.trmedia.camera.monitoring", qos: .userInitiated)
     let metalDevice = MTLCreateSystemDefaultDevice()
     private let commandQueue: MTLCommandQueue?
@@ -62,7 +62,25 @@ final class MonitoringProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferD
     /// Thermal protection: stop all auxiliary processing, recording continues.
     func setSuspended(_ value: Bool) { lock.withLock { suspended = value } }
 
-    var isActive: Bool { lock.withLock { !suspended && (settings.needsProcessedPreview || settings.needsAnalysis) } }
+    var isActive: Bool { lock.withLock { !suspended && (settings.needsProcessedPreview || settings.needsAnalysis || beatEffect != .off) } }
+
+    // MARK: Beat pulse (preview only)
+
+    private var beatEffect: BeatEffect = .off
+    private var lastBeat: CFTimeInterval = -10
+    private var beatCount = 0
+
+    func setBeatEffect(_ effect: BeatEffect) { lock.withLock { beatEffect = effect } }
+
+    /// Called from the audio queue when an onset is detected.
+    func triggerBeat() {
+        lock.withLock {
+            let now = CACurrentMediaTime()
+            guard now - lastBeat >= beatEffect.minimumBeatInterval else { return }
+            lastBeat = now
+            beatCount += 1
+        }
+    }
 
     // MARK: AVCaptureVideoDataOutputSampleBufferDelegate
 
@@ -82,10 +100,13 @@ final class MonitoringProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferD
     /// Single entry point for camera frames and synthetic demo frames. Call on `queue`.
     func processFrame(_ image: CIImage) {
         lock.withLock { lastFrameTime = CACurrentMediaTime() }
-        let (settings, lut, suspended, target) = lock.withLock { (self.settings, self.lut, self.suspended, self.target) }
+        let (settings, lut, suspended, target, effect, lastBeat, seed) = lock.withLock {
+            (self.settings, self.lut, self.suspended, self.target, self.beatEffect, self.lastBeat, self.beatCount)
+        }
         guard !suspended else { return }
-        if settings.needsProcessedPreview || alwaysRender, let target {
-            render(image, settings: settings, lut: lut, into: target)
+        if settings.needsProcessedPreview || alwaysRender || effect != .off, let target {
+            let pulse = effect == .off ? 0 : exp(-(CACurrentMediaTime() - lastBeat) / 0.14)
+            render(image, settings: settings, lut: lut, beat: (effect, pulse, seed), into: target)
         }
         let now = CACurrentMediaTime()
         if settings.needsAnalysis, now - lastAnalysis > 0.1 {
@@ -96,11 +117,12 @@ final class MonitoringProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferD
 
     // MARK: Rendering
 
-    private func render(_ source: CIImage, settings: MonitoringSettings, lut: CubeLUT?, into view: MonitorLayerView) {
+    private func render(_ source: CIImage, settings: MonitoringSettings, lut: CubeLUT?, beat: (BeatEffect, Double, Int), into view: MonitorLayerView) {
         guard let layer = view.metalLayer, let commandQueue, let drawable = layer.nextDrawable(),
               let commandBuffer = commandQueue.makeCommandBuffer() else { return }
         let size = CGSize(width: drawable.texture.width, height: drawable.texture.height)
-        let processed = process(source, settings: settings, lut: lut, fitting: size)
+        var processed = process(source, settings: settings, lut: lut, fitting: size)
+        processed = beat.0.apply(to: processed, amount: beat.1, seed: beat.2)
 
         let destination = CIRenderDestination(width: Int(size.width), height: Int(size.height),
                                               pixelFormat: layer.pixelFormat, commandBuffer: commandBuffer) { drawable.texture }

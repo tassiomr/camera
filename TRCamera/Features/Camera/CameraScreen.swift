@@ -175,6 +175,7 @@ struct CameraScreen: View {
                     withAnimation(.snappy) { model.showLookPicker.toggle(); if model.showLookPicker { model.activePanel = nil } }
                 }
                 ChipButton(title: "Presets", systemImage: "square.stack.3d.up") { sheet = .presets }
+                beatMenu
                 if model.mode == .pro {
                     ChipButton(title: "Zebra", isOn: model.monitoring.zebraEnabled, systemImage: "line.diagonal") { model.monitoring.zebraEnabled.toggle() }
                     ChipButton(title: "Peaking", isOn: model.monitoring.peakingEnabled, systemImage: "scope") { model.monitoring.peakingEnabled.toggle() }
@@ -191,6 +192,34 @@ struct CameraScreen: View {
             }
             .padding(.horizontal, 12)
         }
+    }
+
+    /// Beat-reactive preview effect. Disabled while recording: adding the audio
+    /// analysis output reconfigures the session.
+    private var beatMenu: some View {
+        Menu {
+            Picker("Efeito na batida", selection: $model.beatEffect) {
+                ForEach(BeatEffect.allCases) { Label($0.title, systemImage: $0.systemImage).tag($0) }
+            }
+            Text("Só no preview. O vídeo é gravado limpo.")
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "metronome").font(.system(size: 12, weight: .semibold))
+                Text(beatTitle).font(.system(size: 12, weight: .semibold)).lineLimit(1).monospacedDigit()
+            }
+            .fixedSize()
+            .padding(.horizontal, 12).frame(height: 34)
+            .foregroundStyle(model.beatEffect != .off ? Color.black : Theme.textPrimary)
+            .background(Capsule().fill(model.beatEffect != .off ? Theme.accent : Theme.card))
+        }
+        .disabled(model.isRecording && model.beatEffect == .off)
+        .accessibilityLabel("Efeito na batida da música")
+    }
+
+    private var beatTitle: String {
+        guard model.beatEffect != .off else { return "Batida" }
+        if let bpm = model.liveBPM { return "\(Int(bpm.rounded())) BPM" }
+        return "Ouvindo…"
     }
 
     // MARK: Preview

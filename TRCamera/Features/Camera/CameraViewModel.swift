@@ -71,6 +71,9 @@ final class CameraViewModel {
     var mode: InterfaceMode = .pro
     var activePanel: ParameterPanel?
     var showLookPicker = false
+    /// Beat-reactive preview effect. Off = no audio analysis at all.
+    var beatEffect: BeatEffect = .off { didSet { if beatEffect != oldValue { beatEffectChanged(from: oldValue) } } }
+    var liveBPM: Double?
     var banner: Banner?
     var roll: Double = 0
     var thermalState: ProcessInfo.ThermalState = .nominal
@@ -91,6 +94,8 @@ final class CameraViewModel {
         engine.monitoring.onScopes = { [weak self] data in
             DispatchQueue.main.async { self?.scopes = data }
         }
+        engine.beats.onBeat = { [weak monitoring = engine.monitoring] in monitoring?.triggerBeat() }
+        engine.beats.onTempo = { [weak self] bpm in DispatchQueue.main.async { self?.liveBPM = bpm } }
         userPresets = presetStore.load()
         lastRecording = library.items().first
     }
@@ -156,6 +161,8 @@ final class CameraViewModel {
         if let look = ProcessInfo.processInfo.arguments.firstIndex(of: "-look").flatMap({ i in
             ProcessInfo.processInfo.arguments.indices.contains(i + 1) ? VideoLook(rawValue: ProcessInfo.processInfo.arguments[i + 1]) : nil
         }) { monitoring.look = look }
+        if let i = ProcessInfo.processInfo.arguments.firstIndex(of: "-beat"), ProcessInfo.processInfo.arguments.indices.contains(i + 1),
+           let effect = BeatEffect(rawValue: ProcessInfo.processInfo.arguments[i + 1]) { beatEffect = effect }
         monitoringChanged()
     }
 
@@ -354,7 +361,7 @@ final class CameraViewModel {
     private func monitoringChanged() {
         let lut = monitoring.lutID.flatMap { lutLibrary.load(id: $0) }
         engine.monitoring.update(settings: monitoring, lut: lut)
-        let enabled = !auxiliaryToolsSuspended && (monitoring.needsProcessedPreview || monitoring.needsAnalysis)
+        let enabled = !auxiliaryToolsSuspended && (monitoring.needsProcessedPreview || monitoring.needsAnalysis || beatEffect != .off)
         engine.setMonitoringEnabled(enabled)
         guard enabled, !isDemo, phase == .ready else { return }
         // Never fail silently: if no frames reach the processor, say so.
@@ -368,7 +375,44 @@ final class CameraViewModel {
         }
     }
 
-    var showsProcessedPreview: Bool { monitoring.needsProcessedPreview && !auxiliaryToolsSuspended }
+    var showsProcessedPreview: Bool { (monitoring.needsProcessedPreview || beatEffect != .off) && !auxiliaryToolsSuspended }
+
+    // MARK: Beat detection
+
+    private var demoBeatTimer: Timer?
+
+    private func beatEffectChanged(from old: BeatEffect) {
+        engine.monitoring.setBeatEffect(beatEffect)
+        monitoringChanged()
+        guard (old == .off) != (beatEffect == .off) else { return }
+        if beatEffect == .off {
+            demoBeatTimer?.invalidate(); demoBeatTimer = nil
+            if !isDemo { engine.setBeatDetectionEnabled(false) { _ in } }
+            liveBPM = nil
+            return
+        }
+        if isDemo {
+            // No microphone in the simulator: a steady 120 BPM shows the effect.
+            liveBPM = 120
+            demoBeatTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak monitoring = engine.monitoring] _ in
+                monitoring?.triggerBeat()
+            }
+            return
+        }
+        guard microphoneAuthorized else {
+            show(.error, "A detecção de batidas precisa do microfone. Ative em Ajustes › TR Camera.")
+            beatEffect = .off
+            return
+        }
+        engine.setBeatDetectionEnabled(true) { [weak self] ok in
+            guard let self, !ok else { return }
+            self.show(.error, self.isRecording
+                      ? "Ative a detecção de batidas antes de começar a gravar."
+                      : "Este iPhone não permite analisar o áudio junto com a gravação nesta configuração.")
+            self.beatEffect = .off
+        }
+        show(.info, "Batidas: o efeito aparece só no preview. O vídeo é gravado limpo; aplique o efeito no ritmo pela Biblioteca.")
+    }
 
     private func thermalChanged(_ state: ProcessInfo.ThermalState) {
         thermalState = state
@@ -433,6 +477,7 @@ final class CameraViewModel {
     private func finishRecording(_ result: RecordingResult) {
         if var meta = pendingMetadata {
             meta.createdAt = Date()
+            meta.beatMap = engine.beats.endRecording()
             library.writeSidecar(meta, for: result.url)
         }
         pendingMetadata = nil

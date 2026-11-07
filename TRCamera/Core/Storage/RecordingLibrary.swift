@@ -20,6 +20,9 @@ struct RecordingMetadata: Codable, Hashable {
     var zoom: Double?
     var lut: String?
     var look: String? = nil
+    /// Beats detected live from the microphone (approximate) or from the file.
+    var beatMap: BeatMap? = nil
+    var beatEffect: String? = nil
 }
 
 struct RecordingItem: Identifiable, Hashable {
@@ -180,13 +183,60 @@ final class RecordingLibrary {
 
     /// Renders a new file with the look baked in. The original clip is never modified.
     func exportCopy(of item: RecordingItem, look: VideoLook) async throws -> URL {
-        let asset = AVURLAsset(url: item.url)
         // Same signal handling as the live preview (no color management) so the
         // exported copy matches what was seen on screen.
+        let output = directory.appendingPathComponent("\(item.name)_\(look.rawValue).mov")
+        try await render(item, to: output) { image, _ in look.apply(to: image) }
+        if var meta = item.metadata {
+            meta.createdAt = Date()
+            meta.look = look.title
+            writeSidecar(meta, for: output)
+        }
+        return output
+    }
+
+    enum BeatExportError: LocalizedError {
+        case noAudio, noBeats
+        var errorDescription: String? {
+            switch self {
+            case .noAudio: "Este vídeo não tem áudio para detectar batidas."
+            case .noBeats: "Não foi encontrado um ritmo regular no áudio (fala, ruído ou música sem pulso claro)."
+            }
+        }
+    }
+
+    /// Analyses the clip's own audio (more precise than the live detection, since the
+    /// whole track is known) and renders a copy with `effect` on every beat.
+    /// The original file is never modified.
+    func exportBeatEdit(of item: RecordingItem, effect: BeatEffect, look: VideoLook = .none) async throws -> (url: URL, beats: BeatMap) {
+        guard let audio = try await AudioSamples.read(item.url), !audio.samples.isEmpty else { throw BeatExportError.noAudio }
+        let analysed = BeatAnalysis.analyze(samples: audio.samples, sampleRate: audio.sampleRate)
+        guard !analysed.beats.isEmpty else { throw BeatExportError.noBeats }
+        let map = analysed.thinned(minInterval: effect.minimumBeatInterval)
+        let output = directory.appendingPathComponent("\(item.name)_ritmo_\(effect.rawValue).mov")
+        try await render(item, to: output) { image, time in
+            let pulse = map.pulse(at: time)
+            let seed = map.beats.lastIndex { $0 <= time } ?? 0
+            return effect.apply(to: look.apply(to: image), amount: pulse, seed: seed)
+        }
+        if var meta = item.metadata {
+            meta.createdAt = Date()
+            meta.look = look == .none ? nil : look.title
+            meta.beatMap = analysed
+            meta.beatEffect = effect.title
+            writeSidecar(meta, for: output)
+        }
+        return (output, analysed)
+    }
+
+    /// Shared export path: Core Image per frame, HEVC when the asset allows it.
+    private func render(_ item: RecordingItem, to output: URL, frame: @escaping @Sendable (CIImage, Double) -> CIImage) async throws {
+        let asset = AVURLAsset(url: item.url)
         let context = CIContext(options: [.workingColorSpace: NSNull(), .outputColorSpace: NSNull()])
         let composition = try await AVVideoComposition.videoComposition(with: asset) { request in
             let source = request.sourceImage
-            request.finish(with: look.apply(to: source.clampedToExtent().cropped(to: source.extent)), context: context)
+            let image = frame(source.clampedToExtent().cropped(to: source.extent), request.compositionTime.seconds)
+            request.finish(with: image.cropped(to: source.extent), context: context)
         }
         var preset = AVAssetExportPresetHEVCHighestQuality
         if await !AVAssetExportSession.compatibility(ofExportPreset: preset, with: asset, outputFileType: .mov) {
@@ -196,7 +246,6 @@ final class RecordingLibrary {
             throw NSError(domain: "TRCamera", code: 2, userInfo: [NSLocalizedDescriptionKey: "Exportação indisponível para este arquivo."])
         }
         session.videoComposition = composition
-        let output = directory.appendingPathComponent("\(item.name)_\(look.rawValue).mov")
         try? FileManager.default.removeItem(at: output)
         if #available(iOS 18.0, *) {
             try await session.export(to: output, as: .mov)
@@ -206,12 +255,6 @@ final class RecordingLibrary {
             await session.export()
             if let error = session.error { throw error }
         }
-        if var meta = item.metadata {
-            meta.createdAt = Date()
-            meta.look = look.title
-            writeSidecar(meta, for: output)
-        }
-        return output
     }
 
     static func thumbnail(for url: URL) async -> UIImage? {

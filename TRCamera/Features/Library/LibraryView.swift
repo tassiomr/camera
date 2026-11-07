@@ -71,6 +71,22 @@ struct RecordingDetailView: View {
         }
     }
 
+    private func exportBeat(_ effect: BeatEffect) {
+        exporting = true
+        status = "Analisando o áudio…"
+        Task {
+            do {
+                let result = try await library.exportBeatEdit(of: item, effect: effect)
+                let bpm = result.beats.bpm.map { " · \(Int($0.rounded())) BPM" } ?? ""
+                status = "Cópia no ritmo criada (\(result.beats.beats.count) batidas\(bpm)). O original foi mantido."
+                onChange()
+            } catch {
+                status = "Falha: \(error.localizedDescription)"
+            }
+            exporting = false
+        }
+    }
+
     var body: some View {
         List {
             Section {
@@ -102,6 +118,11 @@ struct RecordingDetailView: View {
                     if let k = m.whiteBalanceKelvin { LabeledContent("WB", value: "\(Int(k))K") }
                     if let f = m.equivalentFocalLength { LabeledContent("Focal", value: "≈\(Int(f)) mm") }
                     LabeledContent("Dispositivo", value: "\(m.deviceModel) · iOS \(m.systemVersion)")
+                    if let beats = m.beatMap {
+                        LabeledContent(beats.source == .live ? "Batidas (ao vivo)" : "Batidas",
+                                       value: "\(beats.beats.count)\(beats.bpm.map { " · \(Int($0.rounded())) BPM" } ?? "")")
+                    }
+                    if let effect = m.beatEffect { LabeledContent("Efeito no ritmo", value: effect) }
                 }
             }
             Section {
@@ -122,6 +143,14 @@ struct RecordingDetailView: View {
                     } else {
                         Label("Exportar cópia com filtro", systemImage: "camera.filters")
                     }
+                }
+                .disabled(exporting)
+                Menu {
+                    ForEach(BeatEffect.allCases.filter { $0 != .off }) { effect in
+                        Button(effect.title, systemImage: effect.systemImage) { exportBeat(effect) }
+                    }
+                } label: {
+                    Label("Editar no ritmo da música", systemImage: "metronome")
                 }
                 .disabled(exporting)
                 Button("Renomear", systemImage: "pencil") { newName = item.name; renaming = true }

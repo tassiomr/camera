@@ -47,11 +47,13 @@ final class ProfessionalCaptureEngine: NSObject, @unchecked Sendable {
     let session = AVCaptureSession()
     let previewLayer: AVCaptureVideoPreviewLayer
     let monitoring = MonitoringProcessor()
+    let beats = BeatTracker()
     var onEvent: ((EngineEvent) -> Void)?
 
     private let sessionQueue = DispatchQueue(label: "com.trmedia.camera.session", qos: .userInitiated)
     private let movieOutput = AVCaptureMovieFileOutput()
     private let videoDataOutput = AVCaptureVideoDataOutput()
+    private let audioDataOutput = AVCaptureAudioDataOutput()
     private var videoInput: AVCaptureDeviceInput?
     private var audioInput: AVCaptureDeviceInput?
     private var device: AVCaptureDevice? { videoInput?.device }
@@ -396,6 +398,35 @@ final class ProfessionalCaptureEngine: NSObject, @unchecked Sendable {
         }
     }
 
+    // MARK: Beat detection
+
+    /// The audio data output is added only when the user turns beat detection on,
+    /// so the default session stays exactly as before. Returns false when the
+    /// session cannot add it (no microphone, or unsupported with this configuration).
+    func setBeatDetectionEnabled(_ enabled: Bool, completion: @escaping @MainActor (Bool) -> Void) {
+        sessionQueue.async { [self] in
+            var ok = true
+            if enabled {
+                if !session.outputs.contains(audioDataOutput) {
+                    if audioInput == nil || movieOutput.isRecording {
+                        ok = false
+                    } else {
+                        session.beginConfiguration()
+                        audioDataOutput.setSampleBufferDelegate(beats, queue: beats.queue)
+                        if session.canAddOutput(audioDataOutput) { session.addOutput(audioDataOutput) } else { ok = false }
+                        session.commitConfiguration()
+                    }
+                }
+                audioDataOutput.connection(with: .audio)?.isEnabled = ok
+            } else {
+                audioDataOutput.connection(with: .audio)?.isEnabled = false
+                beats.reset()
+            }
+            if !ok { Log.capture.error("Audio data output unavailable; beat detection off") }
+            DispatchQueue.main.async { completion(ok) }
+        }
+    }
+
     // MARK: Recording
 
     func startRecording(to url: URL, metadata: [AVMetadataItem]) {
@@ -572,6 +603,9 @@ final class ProfessionalCaptureEngine: NSObject, @unchecked Sendable {
 
 extension ProfessionalCaptureEngine: AVCaptureFileOutputRecordingDelegate {
     func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {
+        // Audio buffers carry timestamps on the session clock; beat times are stored
+        // relative to this instant (accurate to roughly one video frame).
+        if let clock = session.synchronizationClock { beats.beginRecording(at: clock.time) }
         emit(.recordingStarted(fileURL))
     }
 

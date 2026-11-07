@@ -2,7 +2,11 @@ import SwiftUI
 
 @main
 struct TRCameraApp: App {
+    @State private var model = CameraViewModel()
+
     var body: some Scene {
-        WindowGroup { Text("TR Camera") }
+        WindowGroup {
+            CameraScreen(model: model)
+        }
     }
 }

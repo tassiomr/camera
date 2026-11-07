@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "site", "runtimeExecutable": "/usr/bin/python3", "runtimeArgs": ["-m", "http.server", "4173", "--directory", "/Users/tassiorocha/Documents/TRCamera/site"], "port": 4173 }
+  ]
+}

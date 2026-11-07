@@ -71,7 +71,7 @@ struct SettingsSheet: View {
                 LabeledContent("Curva / gamut", value: "\(model.configuration.colorProfile.transferCurve) · \(model.configuration.colorProfile.gamut)")
             }
         } header: { Text("Formato de gravação") } footer: {
-            Text("Só aparecem combinações que esta lente realmente suporta. Ao mudar uma opção, as dependentes são ajustadas automaticamente. O controle de bitrate não é exposto pelo AVCaptureMovieFileOutput; o valor é uma estimativa.")
+            Text("Só aparecem combinações que esta lente realmente suporta. Ao mudar uma opção, as outras se ajustam sozinhas. O tamanho por minuto é uma estimativa.")
         }
     }
 

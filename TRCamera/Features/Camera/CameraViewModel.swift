@@ -99,6 +99,10 @@ final class CameraViewModel {
 
     func bootstrap() async {
         guard phase == .launching else { return }
+        if DemoCamera.isEnabled, AVCaptureDevice.default(for: .video) == nil || ProcessInfo.processInfo.arguments.contains("-demo") {
+            startDemo()
+            return
+        }
         let videoGranted = await Self.requestAccess(for: .video)
         guard videoGranted else { phase = .cameraDenied; return }
         microphoneAuthorized = await Self.requestAccess(for: .audio)
@@ -128,6 +132,46 @@ final class CameraViewModel {
         level.start()
         engine.configureSession(capabilities: caps, initial: initial, camera: startCamera, includeAudio: microphoneAuthorized)
         monitoringChanged()
+    }
+
+    // MARK: Demo (Simulator / UI review)
+
+    private(set) var isDemo = false
+    private let demoCamera = DemoCamera()
+
+    private func startDemo() {
+        isDemo = true
+        let caps = DemoCamera.capabilities
+        capabilities = caps
+        let wide = caps.cameras[1]
+        camera = wide
+        phase = .ready
+        isSessionRunning = true
+        telemetry = CaptureTelemetry(iso: 200, exposureSeconds: 1.0 / 60, exposureOffsetEV: 0, kelvin: 5600, tint: 0,
+                                     lensPosition: 0.6, aperture: 1.78, zoom: 1, audioAverageDB: [-24, -26], audioPeakDB: [-12, -14])
+        level.onRoll = { [weak self] in self?.roll = $0 }
+        demoCamera.start(feeding: engine.monitoring)
+        applyConfiguration(CaptureConfiguration(cameraID: wide.id, resolution: VideoResolution(width: 3840, height: 2160), frameRate: 30,
+                                                colorProfile: .rec709, codec: .hevc, stabilization: .cinematicExtended), camera: wide)
+        if let look = ProcessInfo.processInfo.arguments.firstIndex(of: "-look").flatMap({ i in
+            ProcessInfo.processInfo.arguments.indices.contains(i + 1) ? VideoLook(rawValue: ProcessInfo.processInfo.arguments[i + 1]) : nil
+        }) { monitoring.look = look }
+        monitoringChanged()
+    }
+
+    func setDemoPortrait(_ portrait: Bool) { demoCamera.setPortrait(portrait) }
+
+    /// Single path for every format change. The demo resolves with the same rules
+    /// the device uses and reports a plausible codec list for the chosen format.
+    private func applyConfiguration(_ next: CaptureConfiguration, camera: CameraDescriptor) {
+        guard isDemo else { engine.apply(next, camera: camera); return }
+        let resolver = FormatResolver(camera: camera)
+        guard let first = resolver.resolve(next) else { return }
+        let codecs: [VideoCodec] = first.format.bitDepth >= 10 ? [.hevc, .h264, .proRes422HQ, .proRes422, .proRes422LT, .proRes422Proxy] : [.hevc, .h264]
+        guard var resolved = resolver.resolve(first.configuration, availableCodecs: codecs) else { return }
+        resolved.adjustments = first.adjustments + resolved.adjustments.filter { !first.adjustments.contains($0) }
+        demoCamera.setResolution(resolved.configuration.resolution)
+        handle(.configured(camera: camera, configuration: resolved.configuration, format: resolved.format, codecs: codecs, adjustments: resolved.adjustments))
     }
 
     private static func requestAccess(for media: AVMediaType) async -> Bool {
@@ -160,6 +204,7 @@ final class CameraViewModel {
             self.codecs = codecs
             if let data = try? JSONEncoder().encode(configuration) { defaults.set(data, forKey: configKey) }
             if !adjustments.isEmpty { show(.info, adjustments.joined(separator: "\n")) }
+            aeLocked = false
             clampManualValues()
             reapplyExposure()
         case .telemetry(let t):
@@ -217,14 +262,14 @@ final class CameraViewModel {
         }
         var next = configuration
         change(&next)
-        engine.apply(next, camera: camera)
+        applyConfiguration(next, camera: camera)
     }
 
     func select(camera newCamera: CameraDescriptor) {
         guard !isRecording else { return }
         var next = configuration
         next.cameraID = newCamera.id
-        engine.apply(next, camera: newCamera)
+        applyConfiguration(next, camera: newCamera)
     }
 
     // MARK: Exposure / WB / Focus
@@ -309,7 +354,18 @@ final class CameraViewModel {
     private func monitoringChanged() {
         let lut = monitoring.lutID.flatMap { lutLibrary.load(id: $0) }
         engine.monitoring.update(settings: monitoring, lut: lut)
-        engine.setMonitoringEnabled(!auxiliaryToolsSuspended && (monitoring.needsProcessedPreview || monitoring.needsAnalysis))
+        let enabled = !auxiliaryToolsSuspended && (monitoring.needsProcessedPreview || monitoring.needsAnalysis)
+        engine.setMonitoringEnabled(enabled)
+        guard enabled, !isDemo, phase == .ready else { return }
+        // Never fail silently: if no frames reach the processor, say so.
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard let self, self.isSessionRunning, !self.auxiliaryToolsSuspended,
+                  self.monitoring.needsProcessedPreview || self.monitoring.needsAnalysis,
+                  self.engine.monitoring.secondsSinceLastFrame > 1.5 else { return }
+            Log.capture.error("Monitoring output delivered no frames")
+            self.show(.warning, "Filtros e ferramentas de monitoramento não estão recebendo imagem neste formato. Tente outra resolução/fps e, se persistir, envie o Perfil do iPhone para análise.")
+        }
     }
 
     var showsProcessedPreview: Bool { monitoring.needsProcessedPreview && !auxiliaryToolsSuspended }
@@ -348,6 +404,7 @@ final class CameraViewModel {
 
     func toggleRecording() {
         if isRecording { engine.stopRecording(); return }
+        if isDemo { show(.info, "Modo demo: a gravação real precisa de um iPhone com câmera."); return }
         guard isSessionRunning else { show(.error, "A câmera não está ativa."); return }
         let minimum = Int64(StorageEstimator.bytesPerMinute(configuration)) + 300_000_000
         do {
@@ -411,7 +468,7 @@ final class CameraViewModel {
 
     func apply(recommendation: RecordingConfigurationAdvisor.Recommendation) {
         guard let camera, recommendation.available else { return }
-        engine.apply(recommendation.configuration, camera: camera)
+        applyConfiguration(recommendation.configuration, camera: camera)
         if let angle = recommendation.shutterAngle {
             shutterSeconds = ExposureMath.exposureDuration(shutterAngle: angle, fps: recommendation.configuration.frameRate)
             shutterAuto = false
@@ -427,7 +484,7 @@ final class CameraViewModel {
             if !rec.available { show(.warning, rec.limitations.joined(separator: "\n")); return }
             apply(recommendation: rec)
         } else if let validation = PresetValidator.validate(preset, camera: camera, knownCodecs: codecs) {
-            engine.apply(validation.configuration, camera: camera)
+            applyConfiguration(validation.configuration, camera: camera)
             if !validation.isExact { show(.info, validation.substitutions.joined(separator: "\n")) }
             isoAuto = preset.exposure.iso == nil
             if let iso = preset.exposure.iso { isoValue = iso }

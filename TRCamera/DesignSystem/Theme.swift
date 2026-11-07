@@ -8,7 +8,7 @@ enum Theme {
     static let card = Color(white: 0.115)
     static let cardHighlight = Color(white: 0.16)
     static let textPrimary = Color.white
-    static let textSecondary = Color(white: 0.62)
+    static let textSecondary = Color(white: 0.72)
     static let recording = Color(red: 1, green: 0.27, blue: 0.27)
     static let warning = Color(red: 1, green: 0.78, blue: 0.2)
 
@@ -44,7 +44,7 @@ struct ParameterCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 4 : 8) {
             HStack(spacing: 6) {
-                Text(title).font(Theme.label(10)).foregroundStyle(Theme.textSecondary)
+                Text(title).font(Theme.label(11)).foregroundStyle(Theme.textSecondary).lineLimit(1).fixedSize()
                 if let badge {
                     Text(badge).font(.system(size: 8, weight: .bold)).padding(.horizontal, 4).padding(.vertical, 1)
                         .background(Capsule().stroke(Theme.textSecondary.opacity(0.6)))
@@ -64,7 +64,7 @@ struct ParameterCard: View {
             }
         }
         .padding(12)
-        .frame(minWidth: compact ? 130 : 0)
+        .frame(width: compact ? 142 : nil)
         .background(RoundedRectangle(cornerRadius: 14).fill(isActive ? Theme.cardHighlight : Theme.card))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(isActive ? Theme.accent.opacity(0.7) : .clear, lineWidth: 1))
         .contentShape(Rectangle())
@@ -82,9 +82,10 @@ struct ChipButton: View {
         Button(action: action) {
             HStack(spacing: 4) {
                 if let systemImage { Image(systemName: systemImage).font(.system(size: 12, weight: .semibold)) }
-                Text(title).font(.system(size: 11, weight: .bold).width(.expanded))
+                Text(title).font(.system(size: 12, weight: .semibold)).lineLimit(1)
             }
-            .padding(.horizontal, 10).frame(height: 32)
+            .fixedSize()
+            .padding(.horizontal, 12).frame(height: 34)
             .foregroundStyle(isOn ? Color.black : Theme.textPrimary)
             .background(Capsule().fill(isOn ? Theme.accent : Theme.card))
         }
@@ -138,7 +139,7 @@ struct StepDial: View {
                     }
                 }
                 Capsule().fill(Theme.accent).frame(width: 3, height: geo.size.height * 0.55).offset(y: geo.size.height * 0.12)
-                Text(label(index)).font(Theme.value(15)).foregroundStyle(Theme.accent).offset(y: -geo.size.height * 0.3)
+                Text(label(index)).font(Theme.value(22)).foregroundStyle(Theme.accent).offset(y: -geo.size.height * 0.36)
             }
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 2)
@@ -150,7 +151,7 @@ struct StepDial: View {
                 }
                 .onEnded { _ in dragStartIndex = nil; onCommit() })
         }
-        .frame(height: 64)
+        .frame(height: 78)
         .sensoryFeedback(.selection, trigger: index)
     }
 }

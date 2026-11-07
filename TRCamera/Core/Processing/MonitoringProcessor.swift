@@ -67,12 +67,24 @@ final class MonitoringProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferD
     // MARK: AVCaptureVideoDataOutputSampleBufferDelegate
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        let (settings, lut, suspended, target) = lock.withLock { (self.settings, self.lut, self.suspended, self.target) }
-        guard !suspended, let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         // Raw signal values (no color management) so zebra/false color read code values.
-        let image = CIImage(cvPixelBuffer: pixelBuffer, options: [.colorSpace: NSNull()])
+        processFrame(CIImage(cvPixelBuffer: pixelBuffer, options: [.colorSpace: NSNull()]))
+    }
 
-        if settings.needsProcessedPreview, let target {
+    /// When true every frame is drawn even without image tools (demo mode has no preview layer).
+    var alwaysRender = false
+
+    private var lastFrameTime: CFTimeInterval = 0
+    /// Seconds since the last frame reached the processor (diagnostics).
+    var secondsSinceLastFrame: Double { lock.withLock { CACurrentMediaTime() - lastFrameTime } }
+
+    /// Single entry point for camera frames and synthetic demo frames. Call on `queue`.
+    func processFrame(_ image: CIImage) {
+        lock.withLock { lastFrameTime = CACurrentMediaTime() }
+        let (settings, lut, suspended, target) = lock.withLock { (self.settings, self.lut, self.suspended, self.target) }
+        guard !suspended else { return }
+        if settings.needsProcessedPreview || alwaysRender, let target {
             render(image, settings: settings, lut: lut, into: target)
         }
         let now = CACurrentMediaTime()
@@ -131,7 +143,8 @@ final class MonitoringProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferD
         if settings.zebraEnabled {
             let mask = Self.luma(signal).applyingFilter("CIColorThreshold", parameters: ["inputThreshold": settings.zebraLevel])
             let stripes = CIFilter(name: "CIStripesGenerator", parameters: [
-                "inputColor0": CIColor(red: 1, green: 1, blue: 1, alpha: 0.85),
+                // Dark stripes: zebra marks bright/clipped areas, where white stripes would vanish.
+                "inputColor0": CIColor(red: 0, green: 0, blue: 0, alpha: 0.75),
                 "inputColor1": CIColor(red: 0, green: 0, blue: 0, alpha: 0),
                 "inputWidth": 5.0, "inputSharpness": 1.0
             ])!.outputImage!

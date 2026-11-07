@@ -64,9 +64,9 @@ final class RecordingLibrary {
 
     let directory: URL
 
-    init() {
-        directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Recordings", isDirectory: true)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    init(directory: URL? = nil) {
+        self.directory = directory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Recordings", isDirectory: true)
+        try? FileManager.default.createDirectory(at: self.directory, withIntermediateDirectories: true)
     }
 
     var freeBytes: Int64? { StorageEstimator.freeBytes(at: directory) }
@@ -151,7 +151,8 @@ final class RecordingLibrary {
     }
 
     func rename(_ item: RecordingItem, to newName: String) throws -> URL {
-        let clean = newName.components(separatedBy: CharacterSet(charactersIn: "/\\:?%*|\"<>")).joined().trimmingCharacters(in: .whitespaces)
+        let clean = newName.components(separatedBy: CharacterSet(charactersIn: "/\\:?%*|\"<>")).joined()
+            .split(whereSeparator: \.isWhitespace).joined(separator: " ")
         guard !clean.isEmpty else { return item.url }
         let dest = directory.appendingPathComponent(clean).appendingPathExtension(item.url.pathExtension)
         try FileManager.default.moveItem(at: item.url, to: dest)
@@ -180,11 +181,18 @@ final class RecordingLibrary {
     /// Renders a new file with the look baked in. The original clip is never modified.
     func exportCopy(of item: RecordingItem, look: VideoLook) async throws -> URL {
         let asset = AVURLAsset(url: item.url)
+        // Same signal handling as the live preview (no color management) so the
+        // exported copy matches what was seen on screen.
+        let context = CIContext(options: [.workingColorSpace: NSNull(), .outputColorSpace: NSNull()])
         let composition = try await AVVideoComposition.videoComposition(with: asset) { request in
             let source = request.sourceImage
-            request.finish(with: look.apply(to: source.clampedToExtent()).cropped(to: source.extent), context: nil)
+            request.finish(with: look.apply(to: source.clampedToExtent().cropped(to: source.extent)), context: context)
         }
-        guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHEVCHighestQuality) else {
+        var preset = AVAssetExportPresetHEVCHighestQuality
+        if await !AVAssetExportSession.compatibility(ofExportPreset: preset, with: asset, outputFileType: .mov) {
+            preset = AVAssetExportPresetHighestQuality
+        }
+        guard let session = AVAssetExportSession(asset: asset, presetName: preset) else {
             throw NSError(domain: "TRCamera", code: 2, userInfo: [NSLocalizedDescriptionKey: "Exportação indisponível para este arquivo."])
         }
         session.videoComposition = composition

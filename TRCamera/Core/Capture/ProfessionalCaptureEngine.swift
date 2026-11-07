@@ -96,7 +96,12 @@ final class ProfessionalCaptureEngine: NSObject, @unchecked Sendable {
             videoDataOutput.alwaysDiscardsLateVideoFrames = true
             videoDataOutput.videoSettings = [:] // native format, no conversion cost
             videoDataOutput.setSampleBufferDelegate(monitoring, queue: monitoring.queue)
-            if session.canAddOutput(videoDataOutput) { session.addOutput(videoDataOutput) }
+            if session.canAddOutput(videoDataOutput) {
+                session.addOutput(videoDataOutput)
+            } else {
+                Log.capture.error("Video data output could not be added; monitoring tools unavailable")
+                emit(.failure("Ferramentas de monitoramento e filtros indisponíveis nesta configuração da câmera."))
+            }
             session.commitConfiguration()
             movieOutput.minFreeDiskSpaceLimit = 300_000_000
             isConfigured = true

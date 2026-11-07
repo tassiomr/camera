@@ -68,7 +68,7 @@ struct ParameterAdjustPanel: View {
     var body: some View {
         VStack(spacing: 8) {
             HStack {
-                Text(title).font(Theme.label(10)).foregroundStyle(Theme.textSecondary)
+                Text(title).font(Theme.label(11)).foregroundStyle(Theme.textSecondary)
                 Spacer()
                 accessory
                 Button { withAnimation(.snappy) { model.activePanel = nil } } label: {
@@ -80,7 +80,7 @@ struct ParameterAdjustPanel: View {
             extra
         }
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: Theme.corner).fill(.ultraThinMaterial.opacity(0.9)).environment(\.colorScheme, .dark))
+        .background(RoundedRectangle(cornerRadius: Theme.corner).fill(Color.black.opacity(0.85)))
         .onAppear(perform: syncIndex)
         .onChange(of: model.showShutterAsAngle) { syncIndex() }
     }

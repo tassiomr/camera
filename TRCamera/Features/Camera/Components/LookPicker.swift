@@ -16,12 +16,13 @@ struct LookPicker: View {
                                 .frame(width: 44, height: 44)
                                 .overlay(Circle().stroke(selection == look ? Theme.accent : .clear, lineWidth: 2.5).padding(-4))
                                 .shadow(color: selection == look ? Theme.accent.opacity(0.6) : .clear, radius: 8)
-                            Text(look.title.uppercased())
-                                .font(Theme.label(8))
+                            Text(look.title)
+                                .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(selection == look ? Theme.accent : Theme.textSecondary)
-                                .lineLimit(1)
+                                .lineLimit(2).multilineTextAlignment(.center)
+                                .frame(height: 26, alignment: .top)
                         }
-                        .frame(width: 64)
+                        .frame(width: 74)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Filtro \(look.title)")
@@ -30,7 +31,7 @@ struct LookPicker: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
         }
-        .background(RoundedRectangle(cornerRadius: Theme.corner).fill(.ultraThinMaterial.opacity(0.9)).environment(\.colorScheme, .dark))
+        .background(RoundedRectangle(cornerRadius: Theme.corner).fill(Color.black.opacity(0.82)))
         .sensoryFeedback(.selection, trigger: selection)
     }
 

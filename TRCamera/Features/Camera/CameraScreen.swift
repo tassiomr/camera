@@ -14,7 +14,7 @@ struct CameraScreen: View {
 
     var body: some View {
         GeometryReader { geo in
-            let landscape = geo.size.width > geo.size.height
+            let landscape = DebugLaunch.forceLandscape || geo.size.width > geo.size.height
             ZStack {
                 Theme.background.ignoresSafeArea()
                 switch model.phase {
@@ -23,16 +23,22 @@ struct CameraScreen: View {
                 case .cameraDenied:
                     PermissionDeniedView()
                 case .noCamera:
-                    MessageStateView(icon: "video.slash", title: "Câmera indisponível", message: "Nenhuma câmera de vídeo foi encontrada neste dispositivo. O simulador não possui câmera: use um iPhone físico.")
+                    MessageStateView(icon: "video.slash", title: "Câmera indisponível", message: "Nenhuma câmera de vídeo foi encontrada neste dispositivo.")
                 case .ready:
-                    if landscape { landscapeLayout } else { portraitLayout }
+                    Group { if landscape { landscapeLayout } else { portraitLayout } }
+                        .onAppear { model.setDemoPortrait(!landscape) }
+                        .onChange(of: landscape) { _, value in model.setDemoPortrait(!value) }
                 }
             }
+            .modifier(DebugLandscapeModifier(size: geo.size))
         }
         .preferredColorScheme(.dark)
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
-        .task { await model.bootstrap() }
+        .task {
+            await model.bootstrap()
+            DebugLaunch.apply(to: model) { sheet = $0 }
+        }
         .onChange(of: scenePhase) { _, phase in model.scenePhaseChanged(phase) }
         .sheet(item: $sheet) { sheet in
             Group {
@@ -51,61 +57,61 @@ struct CameraScreen: View {
 
     private var portraitLayout: some View {
         VStack(spacing: 10) {
-            topBar
+            statusBar.padding(.horizontal, 12)
+            toolRow
             preview
                 .frame(maxHeight: .infinity)
-                .overlay(alignment: .bottom) { adjustPanel.padding(8) }
+                .overlay(alignment: .bottom) { overlayPanel.padding(8) }
+                .padding(.horizontal, 6)
             if model.mode == .pro {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) { ParameterCards(model: model, compact: true) }.padding(.horizontal, 12)
                 }
             }
-            lensRow.padding(.horizontal, 12)
+            lensRow
             HStack {
                 libraryButton
                 Spacer()
                 RecordButton(isRecording: model.isRecording, action: model.toggleRecording)
                 Spacer()
-                VStack(spacing: 10) {
-                    iconButton("slider.horizontal.3") { sheet = .settings }
-                }
+                modeButton
             }
             .padding(.horizontal, 28)
-            .padding(.bottom, 6)
+            .padding(.bottom, 4)
         }
     }
 
     private var landscapeLayout: some View {
-        HStack(spacing: 10) {
-            VStack(spacing: 10) {
+        HStack(spacing: 8) {
+            VStack(spacing: 8) {
                 lensInfo
-                Spacer()
-                VStack(spacing: 8) { lensButtons }
-                Spacer()
-                iconButton("square.stack.3d.up") { sheet = .presets }
-                iconButton("cpu") { sheet = .capabilities }
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 8) { lensButtons(vertical: true) }
+                }
+                zoomButtons(vertical: true)
             }
-            .frame(width: 70)
-            .padding(.vertical, 12)
+            .frame(width: 84)
+            .padding(.vertical, 10)
             .background(RoundedRectangle(cornerRadius: Theme.corner).fill(Theme.panel))
 
             VStack(spacing: 8) {
-                topBar
-                preview.overlay(alignment: .bottom) { adjustPanel.padding(8) }
+                statusBar
+                toolRow
+                preview.overlay(alignment: .bottom) { overlayPanel.padding(8) }
             }
 
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 if model.mode == .pro {
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 8) { ParameterCards(model: model, compact: false) }
                     }
-                    .frame(width: 170)
+                    .frame(width: 168)
                 }
-                VStack(spacing: 14) {
-                    iconButton("slider.horizontal.3") { sheet = .settings }
+                VStack(spacing: 12) {
+                    modeButton
                     Spacer()
                     RecordButton(isRecording: model.isRecording, action: model.toggleRecording)
-                    Text(model.isRecording ? "REC" : "VIDEO").font(Theme.label(10)).foregroundStyle(model.isRecording ? Theme.recording : Theme.accent)
+                    Text(model.isRecording ? "REC" : "VIDEO").font(Theme.label(11)).foregroundStyle(model.isRecording ? Theme.recording : Theme.accent)
                     Spacer()
                     libraryButton
                 }
@@ -117,11 +123,81 @@ struct CameraScreen: View {
         .padding(.horizontal, 8)
     }
 
-    // MARK: Pieces
+    // MARK: Status & tools
+
+    /// One readable line: what is being recorded, how much time is left, settings.
+    private var statusBar: some View {
+        HStack(spacing: 10) {
+            if model.isRecording {
+                HStack(spacing: 6) {
+                    Circle().fill(Theme.recording).frame(width: 8, height: 8)
+                    Text(Self.timecode(model.telemetry.recordedSeconds)).font(Theme.value(15))
+                }
+                .fixedSize()
+            }
+            Button { sheet = .settings } label: {
+                HStack(spacing: 6) {
+                    Text(model.configuration.summary)
+                        .font(.system(size: 13, weight: .semibold, design: .rounded).monospacedDigit())
+                        .lineLimit(1).minimumScaleFactor(0.75)
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).foregroundStyle(Theme.textSecondary)
+                }
+                .foregroundStyle(Theme.textPrimary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Formato de gravação: \(model.configuration.summary). Abrir configurações")
+            Spacer(minLength: 4)
+            if model.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue {
+                Image(systemName: "thermometer.high").foregroundStyle(Theme.recording)
+            }
+            if let minutes = model.estimatedMinutesRemaining {
+                Label(StorageEstimator.format(minutes: minutes), systemImage: model.destination == .appStorage ? "internaldrive" : "externaldrive")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(minutes < 10 ? Theme.warning : Theme.textSecondary)
+                    .fixedSize()
+            }
+            Button { sheet = .settings } label: {
+                Image(systemName: "gearshape.fill").font(.system(size: 16, weight: .semibold))
+                    .frame(width: 36, height: 36).background(Circle().fill(Theme.card))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Configurações")
+        }
+        .frame(height: 40)
+    }
+
+    /// Monitoring tools as labelled chips. Scrolls instead of truncating.
+    private var toolRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ChipButton(title: model.monitoring.look == .none ? "Filtro" : model.monitoring.look.title,
+                           isOn: model.showLookPicker || model.monitoring.look != .none, systemImage: "camera.filters") {
+                    withAnimation(.snappy) { model.showLookPicker.toggle(); if model.showLookPicker { model.activePanel = nil } }
+                }
+                ChipButton(title: "Presets", systemImage: "square.stack.3d.up") { sheet = .presets }
+                if model.mode == .pro {
+                    ChipButton(title: "Zebra", isOn: model.monitoring.zebraEnabled, systemImage: "line.diagonal") { model.monitoring.zebraEnabled.toggle() }
+                    ChipButton(title: "Peaking", isOn: model.monitoring.peakingEnabled, systemImage: "scope") { model.monitoring.peakingEnabled.toggle() }
+                    ChipButton(title: "False color", isOn: model.monitoring.falseColorEnabled, systemImage: "paintpalette") { model.monitoring.falseColorEnabled.toggle() }
+                    if model.configuration.colorProfile.isLog {
+                        ChipButton(title: "LUT 709", isOn: model.monitoring.lutID != nil, systemImage: "cube") {
+                            model.monitoring.lutID = model.monitoring.lutID == nil ? BuiltInLUT.appleLogTo709.id : nil
+                        }
+                    }
+                    ChipButton(title: "Histograma", isOn: model.monitoring.histogramEnabled, systemImage: "chart.bar") { model.monitoring.histogramEnabled.toggle() }
+                    ChipButton(title: "Waveform", isOn: model.monitoring.waveformEnabled, systemImage: "waveform.path.ecg") { model.monitoring.waveformEnabled.toggle() }
+                }
+                ChipButton(title: "Lente", systemImage: "cpu") { sheet = .capabilities }
+            }
+            .padding(.horizontal, 12)
+        }
+    }
+
+    // MARK: Preview
 
     private var preview: some View {
         ZStack {
-            PreviewContainer(engine: model.engine, showsProcessed: model.showsProcessedPreview,
+            PreviewContainer(engine: model.engine, showsProcessed: model.showsProcessedPreview || model.isDemo,
                              onTap: { layerPoint, devicePoint in
                                  model.focus(at: devicePoint)
                                  focusIndicator = layerPoint
@@ -148,6 +224,12 @@ struct CameraScreen: View {
                 if let banner = model.banner { BannerView(banner: banner).transition(.move(edge: .bottom).combined(with: .opacity)) }
             }
             .padding(8)
+            if model.isDemo {
+                Text("DEMO").font(Theme.label(9)).padding(.horizontal, 6).padding(.vertical, 3)
+                    .background(Capsule().fill(Theme.warning)).foregroundStyle(.black)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(.top, 84).padding(.trailing, 10)
+                    .allowsHitTesting(false)
+            }
         }
         .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
         .overlay(RoundedRectangle(cornerRadius: Theme.corner).stroke(model.isRecording ? Theme.recording : .clear, lineWidth: 2))
@@ -163,7 +245,7 @@ struct CameraScreen: View {
         }
     }
 
-    @ViewBuilder private var adjustPanel: some View {
+    @ViewBuilder private var overlayPanel: some View {
         if model.showLookPicker {
             LookPicker(selection: $model.monitoring.look)
                 .frame(maxWidth: 560)
@@ -179,104 +261,95 @@ struct CameraScreen: View {
     private var videoAspect: CGFloat {
         let r = model.configuration.resolution
         guard r.height > 0 else { return 16 / 9 }
-        let landscape = CGFloat(r.width) / CGFloat(r.height) * CGFloat(model.monitoring.anamorphicSqueeze)
-        return UIDevice.current.orientation.isLandscape || UIScreen.main.bounds.width > UIScreen.main.bounds.height ? landscape : 1 / landscape
+        let landscapeAspect = CGFloat(r.width) / CGFloat(r.height) * CGFloat(model.monitoring.anamorphicSqueeze)
+        let landscape = DebugLaunch.forceLandscape || UIScreen.main.bounds.width > UIScreen.main.bounds.height
+        return landscape ? landscapeAspect : 1 / landscapeAspect
     }
 
-    private var topBar: some View {
-        HStack(spacing: 8) {
-            if model.isRecording {
-                HStack(spacing: 6) {
-                    Circle().fill(Theme.recording).frame(width: 8, height: 8)
-                    Text(Self.timecode(model.telemetry.recordedSeconds)).font(Theme.value(14))
-                }
-                .padding(.horizontal, 10).frame(height: 32).background(Capsule().fill(Theme.card))
-            }
-            Button { sheet = .settings } label: {
-                Text(model.configuration.summary).font(.system(size: 11, weight: .bold).width(.expanded))
-                    .padding(.horizontal, 10).frame(height: 32).background(Capsule().fill(Theme.card))
-            }.buttonStyle(.plain)
-            ChipButton(title: model.monitoring.look == .none ? "FILTRO" : model.monitoring.look.title.uppercased(),
-                       isOn: model.showLookPicker || model.monitoring.look != .none, systemImage: "camera.filters") {
-                withAnimation(.snappy) { model.showLookPicker.toggle(); if model.showLookPicker { model.activePanel = nil } }
-            }
-            ChipButton(title: "ZEBRA", isOn: model.monitoring.zebraEnabled) { model.monitoring.zebraEnabled.toggle() }
-            ChipButton(title: "PEAK", isOn: model.monitoring.peakingEnabled) { model.monitoring.peakingEnabled.toggle() }
-            if model.configuration.colorProfile.isLog {
-                ChipButton(title: "LUT", isOn: model.monitoring.lutID != nil) {
-                    model.monitoring.lutID = model.monitoring.lutID == nil ? BuiltInLUT.appleLogTo709.id : nil
-                }
-            }
-            Spacer(minLength: 0)
-            if model.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue {
-                Image(systemName: "thermometer.high").foregroundStyle(Theme.recording)
-            }
-            if let minutes = model.estimatedMinutesRemaining {
-                Label(StorageEstimator.format(minutes: minutes), systemImage: model.destination == .appStorage ? "internaldrive" : "externaldrive")
-                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(minutes < 10 ? Theme.warning : Theme.textSecondary)
-            }
-            Picker("", selection: $model.mode) {
-                ForEach(InterfaceMode.allCases) { Text($0.label).tag($0) }
-            }.pickerStyle(.segmented).frame(width: 110)
-        }
-        .padding(.horizontal, 8)
-        .lineLimit(1)
-    }
+    // MARK: Lenses & zoom
 
     private var lensInfo: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 3) {
             Image(systemName: "camera.aperture").foregroundStyle(Theme.accent)
-            Text(model.camera?.lens.label.uppercased() ?? "").font(Theme.label(8)).foregroundStyle(Theme.textSecondary)
             if let f = model.equivalentFocalLength {
-                Text("≈\(Int(f.rounded()))MM").font(Theme.label(9)).foregroundStyle(Theme.textPrimary)
+                Text("\(Int(f.rounded())) mm").font(Theme.value(14)).foregroundStyle(Theme.textPrimary)
             }
-            if model.isDigitalZoom {
-                Text("DIGITAL").font(.system(size: 7, weight: .bold)).foregroundStyle(Theme.warning)
-            }
+            Text(model.isDigitalZoom ? "DIGITAL" : (model.camera?.lens.label.uppercased() ?? ""))
+                .font(Theme.label(9)).foregroundStyle(model.isDigitalZoom ? Theme.warning : Theme.textSecondary)
         }
     }
 
-    @ViewBuilder private var lensButtons: some View {
+    private func lensButtons(vertical: Bool) -> some View {
         ForEach(model.selectableCameras.filter { !$0.isVirtual || $0.lens == .virtualMulti }) { cam in
+            let selected = cam.id == model.camera?.id
             Button { model.select(camera: cam) } label: {
-                Text(lensShortLabel(cam))
-                    .font(.system(size: 11, weight: .bold))
-                    .frame(width: 44, height: 44)
-                    .background(Circle().fill(cam.id == model.camera?.id ? Theme.accent : Theme.card))
-                    .foregroundStyle(cam.id == model.camera?.id ? .black : .white)
-            }.buttonStyle(.plain)
+                Text(Self.lensLabel(cam))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .lineLimit(1).fixedSize()
+                    .padding(.horizontal, 12)
+                    .frame(minWidth: vertical ? 68 : 0, minHeight: 38)
+                    .background(Capsule().fill(selected ? Theme.accent : Theme.card))
+                    .foregroundStyle(selected ? .black : .white)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Lente \(cam.lens.label)")
         }
+    }
+
+    @ViewBuilder private func zoomButtons(vertical: Bool) -> some View {
+        let content = Group {
+            ForEach(model.zoomPresets, id: \.factor) { preset in
+                let selected = abs(model.telemetry.zoom - preset.factor) < 0.05
+                Button { model.engine.setZoom(preset.factor, rate: 4) } label: {
+                    Text(preset.label).font(.system(size: 12, weight: .bold, design: .rounded))
+                        .frame(width: 40, height: 32)
+                        .background(Capsule().fill(selected ? Theme.accentDeep : Theme.card))
+                }.buttonStyle(.plain)
+            }
+            Button { withAnimation(.snappy) { model.showLookPicker = false; model.activePanel = model.activePanel == .zoom ? nil : .zoom } } label: {
+                Image(systemName: "plus.magnifyingglass").frame(width: 40, height: 32)
+                    .background(Capsule().fill(model.activePanel == .zoom ? Theme.accentDeep : Theme.card))
+            }.buttonStyle(.plain)
+            .accessibilityLabel("Zoom contínuo")
+        }
+        if vertical { VStack(spacing: 6) { content } } else { HStack(spacing: 6) { content } }
     }
 
     private var lensRow: some View {
         HStack(spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: 8) { lensButtons } }
-            Divider().frame(height: 30).overlay(Theme.textSecondary.opacity(0.3))
-            ForEach(model.zoomPresets, id: \.factor) { preset in
-                Button { model.engine.setZoom(preset.factor, rate: 4) } label: {
-                    Text(preset.label).font(.system(size: 11, weight: .bold))
-                        .frame(width: 38, height: 30)
-                        .background(Capsule().fill(abs(model.telemetry.zoom - preset.factor) < 0.05 ? Theme.accentDeep : Theme.card))
-                }.buttonStyle(.plain)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) { lensButtons(vertical: false) }.padding(.leading, 12)
             }
-            Button { withAnimation(.snappy) { model.activePanel = model.activePanel == .zoom ? nil : .zoom } } label: {
-                Image(systemName: "plus.magnifyingglass").frame(width: 30, height: 30)
-            }.buttonStyle(.plain)
-            iconButton("square.stack.3d.up") { sheet = .presets }
+            zoomButtons(vertical: false).padding(.trailing, 12)
         }
         .foregroundStyle(.white)
     }
 
-    private func lensShortLabel(_ cam: CameraDescriptor) -> String {
+    /// Lenses are named by their 35 mm equivalent focal length (what filmmakers use).
+    static func lensLabel(_ cam: CameraDescriptor) -> String {
         switch cam.lens {
-        case .ultraWide: "UW"
-        case .wide: "W"
-        case .telephoto: "T"
-        case .frontWide, .frontUltraWide: "F"
-        case .virtualMulti: "A"
-        case .external: "EXT"
-        case .other: "C"
+        case .frontWide, .frontUltraWide: return "Frontal"
+        case .virtualMulti: return "Auto"
+        case .external: return "Externa"
+        default:
+            if let f = cam.equivalentFocalLength { return "\(Int(f.rounded())) mm" }
+            return cam.lens.label
         }
+    }
+
+    // MARK: Buttons
+
+    private var modeButton: some View {
+        Button { withAnimation(.snappy) { model.mode = model.mode == .pro ? .simple : .pro } } label: {
+            Text(model.mode == .pro ? "PRO" : "AUTO")
+                .font(Theme.label(11))
+                .frame(width: 52, height: 52)
+                .background(Circle().fill(model.mode == .pro ? Theme.card : Theme.accentDeep))
+                .overlay(Circle().stroke(Theme.accent.opacity(0.5), lineWidth: 1))
+                .foregroundStyle(.white)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(model.mode == .pro ? "Modo Pro. Tocar para modo simples" : "Modo simples. Tocar para modo Pro")
     }
 
     private var libraryButton: some View {
@@ -289,16 +362,41 @@ struct CameraScreen: View {
         .accessibilityLabel("Biblioteca de vídeos")
     }
 
-    private func iconButton(_ name: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: name).font(.system(size: 17, weight: .semibold))
-                .frame(width: 46, height: 46).background(Circle().fill(Theme.card)).foregroundStyle(.white)
-        }.buttonStyle(.plain)
-    }
-
     static func timecode(_ seconds: Double) -> String {
         let s = Int(seconds)
         return String(format: "%02d:%02d:%02d", s / 3600, (s / 60) % 60, s % 60)
+    }
+}
+
+/// Launch arguments used to capture every screen in the Simulator for review.
+enum DebugLaunch {
+    static let args = ProcessInfo.processInfo.arguments
+    static var forceLandscape: Bool { args.contains("-landscape") }
+
+    static func value(_ key: String) -> String? {
+        guard let i = args.firstIndex(of: key), args.indices.contains(i + 1) else { return nil }
+        return args[i + 1]
+    }
+
+    @MainActor
+    static func apply(to model: CameraViewModel, presentSheet: (CameraSheet) -> Void) {
+        guard model.isDemo else { return }
+        if args.contains("-simple") { model.mode = .simple }
+        if args.contains("-lookPicker") { model.showLookPicker = true }
+        if let panel = value("-panel").flatMap(ParameterPanel.init(rawValue:)) { model.activePanel = panel }
+        if let sheet = value("-sheet").flatMap(CameraSheet.init(rawValue:)) { presentSheet(sheet) }
+    }
+}
+
+/// Renders the landscape layout rotated inside a portrait Simulator (screenshot review only).
+struct DebugLandscapeModifier: ViewModifier {
+    var size: CGSize
+    func body(content: Content) -> some View {
+        if DebugLaunch.forceLandscape && size.height > size.width {
+            content.frame(width: size.height, height: size.width).rotationEffect(.degrees(90)).frame(width: size.width, height: size.height)
+        } else {
+            content
+        }
     }
 }
 
@@ -308,11 +406,11 @@ struct BannerView: View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: banner.kind == .error ? "exclamationmark.octagon.fill" : banner.kind == .warning ? "exclamationmark.triangle.fill" : "info.circle.fill")
                 .foregroundStyle(banner.kind == .error ? Theme.recording : banner.kind == .warning ? Theme.warning : Theme.accent)
-            Text(banner.message).font(.system(size: 12, weight: .medium)).foregroundStyle(.white).multilineTextAlignment(.leading)
+            Text(banner.message).font(.system(size: 13, weight: .medium)).foregroundStyle(.white).multilineTextAlignment(.leading)
             Spacer(minLength: 0)
         }
         .padding(10)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.black.opacity(0.75)))
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.black.opacity(0.8)))
         .frame(maxWidth: 520)
     }
 }

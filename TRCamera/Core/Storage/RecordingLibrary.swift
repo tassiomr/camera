@@ -19,6 +19,7 @@ struct RecordingMetadata: Codable, Hashable {
     var equivalentFocalLength: Double?
     var zoom: Double?
     var lut: String?
+    var look: String? = nil
 }
 
 struct RecordingItem: Identifiable, Hashable {
@@ -174,6 +175,35 @@ final class RecordingLibrary {
         try await PHPhotoLibrary.shared().performChanges {
             PHAssetCreationRequest.forAsset().addResource(with: .video, fileURL: url, options: nil)
         }
+    }
+
+    /// Renders a new file with the look baked in. The original clip is never modified.
+    func exportCopy(of item: RecordingItem, look: VideoLook) async throws -> URL {
+        let asset = AVURLAsset(url: item.url)
+        let composition = try await AVVideoComposition.videoComposition(with: asset) { request in
+            let source = request.sourceImage
+            request.finish(with: look.apply(to: source.clampedToExtent()).cropped(to: source.extent), context: nil)
+        }
+        guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHEVCHighestQuality) else {
+            throw NSError(domain: "TRCamera", code: 2, userInfo: [NSLocalizedDescriptionKey: "Exportação indisponível para este arquivo."])
+        }
+        session.videoComposition = composition
+        let output = directory.appendingPathComponent("\(item.name)_\(look.rawValue).mov")
+        try? FileManager.default.removeItem(at: output)
+        if #available(iOS 18.0, *) {
+            try await session.export(to: output, as: .mov)
+        } else {
+            session.outputURL = output
+            session.outputFileType = .mov
+            await session.export()
+            if let error = session.error { throw error }
+        }
+        if var meta = item.metadata {
+            meta.createdAt = Date()
+            meta.look = look.title
+            writeSidecar(meta, for: output)
+        }
+        return output
     }
 
     static func thumbnail(for url: URL) async -> UIImage? {

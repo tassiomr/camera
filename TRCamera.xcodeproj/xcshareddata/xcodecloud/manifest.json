@@ -1,0 +1,9 @@
+{
+  "id" : "f299bc71-c57d-4695-96a2-510a2deda4f6",
+  "targets" : [
+    {
+      "id" : "20768534-10be-47eb-92fa-a1df94f6a77c",
+      "name" : "TRCamera"
+    }
+  ]
+}

@@ -70,6 +70,7 @@ final class CameraViewModel {
     var scopes = ScopeData()
     var mode: InterfaceMode = .pro
     var activePanel: ParameterPanel?
+    var showLookPicker = false
     var banner: Banner?
     var roll: Double = 0
     var thermalState: ProcessInfo.ThermalState = .nominal
@@ -368,7 +369,8 @@ final class CameraViewModel {
             codec: configuration.codec.label, colorProfile: configuration.colorProfile.label, stabilization: configuration.stabilization.label,
             iso: isoAuto ? nil : isoValue, shutter: shutterAuto ? nil : ExposureMath.shutterLabel(shutterSeconds),
             whiteBalanceKelvin: wbAuto ? nil : kelvin, equivalentFocalLength: equivalentFocalLength, zoom: telemetry.zoom,
-            lut: monitoring.lutID.map { "\($0) (somente preview)" })
+            lut: monitoring.lutID.map { "\($0) (somente preview)" },
+            look: monitoring.look == .none ? nil : "\(monitoring.look.title) (somente preview)")
     }
 
     private func finishRecording(_ result: RecordingResult) {

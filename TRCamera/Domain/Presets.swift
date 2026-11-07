@@ -52,6 +52,8 @@ struct MonitoringSettings: Codable, Hashable, Sendable {
     var histogramEnabled = true
     var waveformEnabled = false
     var lutID: String? = nil
+    /// Creative look shown in the preview; applied to files only on export.
+    var look: VideoLook = .none
     var anamorphicSqueeze: Double = 1.0
     var thirdsGrid = true
     var centerMark = false
@@ -61,7 +63,7 @@ struct MonitoringSettings: Codable, Hashable, Sendable {
 
     /// True when the frame has to go through the monitoring renderer (higher latency).
     var needsProcessedPreview: Bool {
-        zebraEnabled || peakingEnabled || falseColorEnabled || lutID != nil || anamorphicSqueeze != 1
+        zebraEnabled || peakingEnabled || falseColorEnabled || lutID != nil || look != .none || anamorphicSqueeze != 1
     }
     var needsAnalysis: Bool { histogramEnabled || waveformEnabled }
 }

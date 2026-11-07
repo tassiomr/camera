@@ -54,6 +54,22 @@ struct RecordingDetailView: View {
     @State private var newName = ""
     @State private var confirmDelete = false
     @State private var status: String?
+    @State private var exporting = false
+
+    private func export(_ look: VideoLook) {
+        exporting = true
+        status = nil
+        Task {
+            do {
+                let url = try await library.exportCopy(of: item, look: look)
+                status = "Cópia \"\(url.deletingPathExtension().lastPathComponent)\" criada. O original foi mantido."
+                onChange()
+            } catch {
+                status = "Falha ao exportar: \(error.localizedDescription)"
+            }
+            exporting = false
+        }
+    }
 
     var body: some View {
         List {
@@ -96,6 +112,18 @@ struct RecordingDetailView: View {
                         catch { status = error.localizedDescription }
                     }
                 }
+                Menu {
+                    ForEach(VideoLook.allCases.filter { $0 != .none }) { look in
+                        Button(look.title) { export(look) }
+                    }
+                } label: {
+                    if exporting {
+                        HStack { ProgressView(); Text("Exportando…") }
+                    } else {
+                        Label("Exportar cópia com filtro", systemImage: "camera.filters")
+                    }
+                }
+                .disabled(exporting)
                 Button("Renomear", systemImage: "pencil") { newName = item.name; renaming = true }
                 Button("Excluir", systemImage: "trash", role: .destructive) { confirmDelete = true }
             }

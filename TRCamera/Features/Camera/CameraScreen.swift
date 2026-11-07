@@ -164,7 +164,11 @@ struct CameraScreen: View {
     }
 
     @ViewBuilder private var adjustPanel: some View {
-        if let panel = model.activePanel {
+        if model.showLookPicker {
+            LookPicker(selection: $model.monitoring.look)
+                .frame(maxWidth: 560)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+        } else if let panel = model.activePanel {
             ParameterAdjustPanel(model: model, panel: panel)
                 .id(panel)
                 .frame(maxWidth: 520)
@@ -192,6 +196,10 @@ struct CameraScreen: View {
                 Text(model.configuration.summary).font(.system(size: 11, weight: .bold).width(.expanded))
                     .padding(.horizontal, 10).frame(height: 32).background(Capsule().fill(Theme.card))
             }.buttonStyle(.plain)
+            ChipButton(title: model.monitoring.look == .none ? "FILTRO" : model.monitoring.look.title.uppercased(),
+                       isOn: model.showLookPicker || model.monitoring.look != .none, systemImage: "camera.filters") {
+                withAnimation(.snappy) { model.showLookPicker.toggle(); if model.showLookPicker { model.activePanel = nil } }
+            }
             ChipButton(title: "ZEBRA", isOn: model.monitoring.zebraEnabled) { model.monitoring.zebraEnabled.toggle() }
             ChipButton(title: "PEAK", isOn: model.monitoring.peakingEnabled) { model.monitoring.peakingEnabled.toggle() }
             if model.configuration.colorProfile.isLog {

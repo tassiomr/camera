@@ -1,7 +1,7 @@
 # TR Camera — Diretriz do projeto
 
 Bundle ID: **`com.trmedia.camera`** · Nome exibido: **TR Camera** · iOS mínimo **17.0** · iPhone · SwiftUI + AVFoundation + Core Image/Metal
-Estado em 07/11/2026: **Fases 1–3 completas, Fase 4 parcial, site pronto.** Compila sem warnings para iPhone físico; **32/32 testes passando** no simulador.
+Estado em 07/11/2026: **Fases 1–3 completas, Fase 4 parcial, site pronto.** Compila sem warnings para iPhone físico; **65/65 testes passando** no simulador.
 
 ---
 
@@ -76,14 +76,14 @@ Arquivos novos colocados em `TRCamera/` entram no target automaticamente (pastas
 - Na estética do Luminous: fundo grafite, **crescente luminoso menta→azul-violeta** como anel da lente, vidro escuro com anéis e o **ponto de luz** no topo. Inclui variante *tinted* do iOS.
 - Gerador reproduzível em `tools/make_icon.swift` (`swiftc -O tools/make_icon.swift -o mk && ./mk AppIcon.png`).
 
-### F11. Site (Vercel) → `site/`
-- `index.html` (landing), `privacidade.html`, `termos.html`, `suporte.html`, `styles.css`. O `vercel.json` fica na **raiz do repositório** e publica a pasta `site` (URLs limpas: `/privacidade`, `/termos`, `/suporte`; redirects de `/privacy`, `/terms`, `/support`; headers de segurança).
+### F11. Site (Vercel) → `public/`
+- `index.html` (landing), `privacidade.html`, `termos.html`, `suporte.html`, `styles.css`. O `vercel.json` fica na **raiz do repositório** e publica a pasta `public` sem etapa de build (URLs limpas: `/privacidade`, `/termos`, `/suporte`; redirects de `/privacy`, `/terms`, `/support`; headers de segurança).
 - **Antes de publicar:** troque `CONTATO_EMAIL` (aparece em 3 arquivos) pelo e-mail de contato real e confirme o nome da empresa (“TR Media”).
 - Deploy:
 ```bash
 npx vercel --prod
 ```
-  Ou importe o repositório pela interface da Vercel **sem alterar nada** (Root Directory `./`): o `vercel.json` da raiz já aponta a saída para `site/`.
+  Ou importe o repositório pela interface da Vercel **sem alterar nada** (Root Directory `./`): o `vercel.json` da raiz já aponta a saída para `public/`. Se o deploy falhar, confira em Settings › Build and Deployment que o Root Directory está vazio e que nenhum Build Command foi sobrescrito.
 - App Store Connect: *Privacy Policy URL* = `https://SEU-DOMINIO/privacidade`, *Support URL* = `/suporte`, rótulo de privacidade = **“Data Not Collected”**.
 
 ### F12. Filtros criativos (looks) → `Core/Processing/VideoLook.swift`

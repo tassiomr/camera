@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "",
-  "buildCommand": "rm -rf public && mkdir -p public && cp -R site/. public/",
+  "buildCommand": "",
   "outputDirectory": "public",
   "cleanUrls": true,
   "trailingSlash": false,

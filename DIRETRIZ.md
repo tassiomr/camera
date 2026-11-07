@@ -77,13 +77,13 @@ Arquivos novos colocados em `TRCamera/` entram no target automaticamente (pastas
 - Gerador reproduzível em `tools/make_icon.swift` (`swiftc -O tools/make_icon.swift -o mk && ./mk AppIcon.png`).
 
 ### F11. Site (Vercel) → `site/`
-- `index.html` (landing), `privacidade.html`, `termos.html`, `suporte.html`, `styles.css`, `vercel.json` (URLs limpas: `/privacidade`, `/termos`, `/suporte`; redirects de `/privacy`, `/terms`, `/support`; headers de segurança).
+- `index.html` (landing), `privacidade.html`, `termos.html`, `suporte.html`, `styles.css`. O `vercel.json` fica na **raiz do repositório** e publica a pasta `site` (URLs limpas: `/privacidade`, `/termos`, `/suporte`; redirects de `/privacy`, `/terms`, `/support`; headers de segurança).
 - **Antes de publicar:** troque `CONTATO_EMAIL` (aparece em 3 arquivos) pelo e-mail de contato real e confirme o nome da empresa (“TR Media”).
 - Deploy:
 ```bash
-cd site && npx vercel --prod
+npx vercel --prod
 ```
-  Ou importe o repositório na Vercel com **Root Directory = `site`**, sem framework e sem build.
+  Ou importe o repositório pela interface da Vercel **sem alterar nada** (Root Directory `./`): o `vercel.json` da raiz já aponta a saída para `site/`.
 - App Store Connect: *Privacy Policy URL* = `https://SEU-DOMINIO/privacidade`, *Support URL* = `/suporte`, rótulo de privacidade = **“Data Not Collected”**.
 
 ### F12. Filtros criativos (looks) → `Core/Processing/VideoLook.swift`

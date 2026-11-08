@@ -13,6 +13,13 @@ enum ParameterPanel: String, Identifiable {
     var id: String { rawValue }
 }
 
+struct PostProcessStatus: Equatable {
+    var title: String
+    var progress: Double
+    /// Clips still waiting, including this one.
+    var remaining: Int
+}
+
 struct Banner: Identifiable, Equatable {
     enum Kind { case info, warning, error }
     var id = UUID()
@@ -84,6 +91,12 @@ final class CameraViewModel {
     var isRecording = false
     var destination: RecordingDestination = .appStorage
     var lastRecording: RecordingItem?
+    /// Filter being applied to a just-recorded clip (nil when idle).
+    var postProcess: PostProcessStatus?
+    /// When a filter is applied after recording, also keep the unfiltered file.
+    var keepOriginalWhenFiltering: Bool = UserDefaults.standard.object(forKey: "keepOriginalWhenFiltering") as? Bool ?? true {
+        didSet { defaults.set(keepOriginalWhenFiltering, forKey: "keepOriginalWhenFiltering") }
+    }
     var userPresets: [CapturePreset] = []
 
     private var defaults = UserDefaults.standard
@@ -455,6 +468,8 @@ final class CameraViewModel {
             let url = try library.nextURL(destination: destination, minimumBytes: minimum)
             let meta = currentMetadata()
             pendingMetadata = meta
+            // The look shown when recording starts is the one baked in afterwards.
+            pendingLook = monitoring.look == .none ? nil : (monitoring.look, monitoring.lutID.flatMap { lutLibrary.load(id: $0) })
             engine.startRecording(to: url, metadata: RecordingLibrary.metadataItems(for: meta))
         } catch {
             show(.error, error.localizedDescription)
@@ -465,6 +480,9 @@ final class CameraViewModel {
     func refreshLibrary() { lastRecording = library.items().first }
 
     private var pendingMetadata: RecordingMetadata?
+    private var pendingLook: (look: VideoLook, lut: CubeLUT?)?
+    private var postProcessTask: Task<Void, Never>?
+    private var postProcessQueued = 0
 
     private func currentMetadata() -> RecordingMetadata {
         RecordingMetadata(
@@ -478,17 +496,66 @@ final class CameraViewModel {
     }
 
     private func finishRecording(_ result: RecordingResult) {
+        var savedMeta = pendingMetadata
         if var meta = pendingMetadata {
             meta.createdAt = Date()
             meta.beatMap = engine.beats.endRecording()
             library.writeSidecar(meta, for: result.url)
+            savedMeta = meta
         }
         pendingMetadata = nil
+        let look = pendingLook
+        pendingLook = nil
         if let message = result.errorMessage {
             show(result.isPlayable ? .warning : .error,
                  result.isPlayable ? "Gravação finalizada com aviso: \(message). O arquivo foi preservado." : "Falha na gravação: \(message)")
         }
         lastRecording = library.items().first
+        if let look, result.isPlayable {
+            let item = library.items().first { $0.url.standardizedFileURL == result.url.standardizedFileURL }
+                ?? RecordingItem(url: result.url, metadata: savedMeta, fileSize: 0, createdAt: Date())
+            enqueueFilter(look.look, lut: look.lut, on: item)
+        }
+    }
+
+    // MARK: Filter after recording
+
+    /// Recording always writes the clean sensor stream (no risk to the take). The
+    /// look chosen on screen is then applied to a new file with the same export
+    /// path as the library. Clips are processed one at a time, in order.
+    private func enqueueFilter(_ look: VideoLook, lut: CubeLUT?, on item: RecordingItem) {
+        postProcessQueued += 1
+        let previous = postProcessTask
+        postProcessTask = Task { [weak self] in
+            await previous?.value
+            await self?.applyFilter(look, lut: lut, on: item)
+        }
+    }
+
+    private func applyFilter(_ look: VideoLook, lut: CubeLUT?, on item: RecordingItem) async {
+        postProcess = PostProcessStatus(title: look.title, progress: 0, remaining: postProcessQueued)
+        // Finish even if the user leaves the app right after recording.
+        let background = UIApplication.shared.beginBackgroundTask(withName: "apply-filter")
+        defer {
+            UIApplication.shared.endBackgroundTask(background)
+            postProcessQueued -= 1
+            postProcess = nil
+        }
+        do {
+            let url = try await library.exportCopy(of: item, look: look, lut: lut) { [weak self] p in
+                Task { @MainActor in self?.postProcess?.progress = p }
+            }
+            ThumbnailView.invalidate(url)
+            if !keepOriginalWhenFiltering, await RecordingLibrary.inspect(url)?.isPlayable == true {
+                try? library.delete(item)
+            }
+            lastRecording = library.items().first { $0.url.lastPathComponent == url.lastPathComponent } ?? library.items().first
+            show(.info, keepOriginalWhenFiltering
+                 ? "Vídeo salvo com \(look.title). O original sem filtro também está na Biblioteca."
+                 : "Vídeo salvo com \(look.title).")
+        } catch {
+            show(.error, "O vídeo foi gravado, mas não foi possível aplicar \(look.title): \(error.localizedDescription). O original está na Biblioteca.")
+        }
     }
 
     func selectDestination(external: Bool) async {

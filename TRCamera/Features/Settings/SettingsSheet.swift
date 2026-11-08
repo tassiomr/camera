@@ -17,6 +17,11 @@ struct SettingsSheet: View {
                 guidesSection
                 audioSection
                 storageSection
+                Section {
+                    Toggle("Manter também o original sem filtro", isOn: $model.keepOriginalWhenFiltering)
+                } header: { Text("Filtros") } footer: {
+                    Text("Com um filtro escolhido, o vídeo é gravado limpo e o filtro é aplicado logo ao parar de gravar. Ligado, você fica com as duas versões (ocupa o dobro de espaço). O vídeo filtrado sai em HEVC.")
+                }
                 Section("Interface") {
                     Picker("Modo", selection: $model.mode) { ForEach(InterfaceMode.allCases) { Text($0.label).tag($0) } }
                 }
@@ -102,7 +107,7 @@ struct SettingsSheet: View {
                 ForEach([1.0, 1.33, 1.55, 1.8, 2.0], id: \.self) { Text($0 == 1 ? "Off" : String(format: "%.2fx", $0)).tag($0) }
             }
         } header: { Text("Monitoramento") } footer: {
-            Text("Zebra e peaking medem o sinal gravado. LUT, false color e desqueeze afetam só a visualização — o arquivo nunca é alterado. Com essas ferramentas ativas o preview passa pelo processador (latência um pouco maior).")
+            Text("Zebra e peaking medem o sinal gravado. LUT, false color e desqueeze afetam só a visualização; se um filtro estiver escolhido, a LUT também entra na versão filtrada salva ao parar de gravar. Com essas ferramentas ativas o preview passa pelo processador (latência um pouco maior).")
         }
     }
 

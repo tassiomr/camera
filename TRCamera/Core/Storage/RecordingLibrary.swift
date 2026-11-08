@@ -195,16 +195,26 @@ final class RecordingLibrary {
     }
 
     /// Renders a new file with the look baked in. The original clip is never modified.
-    func exportCopy(of item: RecordingItem, look: VideoLook, progress: (@Sendable (Double) -> Void)? = nil) async throws -> URL {
+    /// `lut` reproduces the preview order (view LUT, then look) so a Log clip
+    /// filtered right after recording looks like what was on screen.
+    func exportCopy(of item: RecordingItem, look: VideoLook, lut: CubeLUT? = nil,
+                    progress: (@Sendable (Double) -> Void)? = nil) async throws -> URL {
         // Same signal handling as the live preview (no color management) so the
         // exported copy matches what was seen on screen.
-        let output = directory.appendingPathComponent("\(item.name)_\(look.rawValue).mov")
-        try await render(item, to: output, progress: progress) { image, _ in look.apply(to: image) }
+        let output = uniqueURL("\(item.name)_\(look.rawValue)")
+        try await render(item, to: output, progress: progress) { image, _ in
+            var graded = image
+            if let lut {
+                graded = graded.applyingFilter("CIColorCube", parameters: ["inputCubeDimension": lut.dimension, "inputCubeData": lut.data])
+            }
+            return look.apply(to: graded)
+        }
         // Always write a sidecar so the library can label the copy, even when the
         // source clip had none.
         var meta = item.metadata ?? .exportedCopy()
         meta.createdAt = Date()
         meta.look = look.title
+        if let lut { meta.lut = lut.title }
         writeSidecar(meta, for: output)
         return output
     }
@@ -228,7 +238,7 @@ final class RecordingLibrary {
         let analysed = BeatAnalysis.analyze(samples: audio.samples, sampleRate: audio.sampleRate)
         guard !analysed.beats.isEmpty else { throw BeatExportError.noBeats }
         let map = analysed.thinned(minInterval: effect.minimumBeatInterval)
-        let output = directory.appendingPathComponent("\(item.name)_ritmo_\(effect.rawValue).mov")
+        let output = uniqueURL("\(item.name)_ritmo_\(effect.rawValue)")
         try await render(item, to: output, progress: progress) { image, time in
             let pulse = map.pulse(at: time)
             let seed = map.beats.lastIndex { $0 <= time } ?? 0
@@ -241,6 +251,17 @@ final class RecordingLibrary {
         meta.beatEffect = effect.title
         writeSidecar(meta, for: output)
         return (output, analysed)
+    }
+
+    /// Never overwrites an earlier copy: TR_x_mono.mov, TR_x_mono_2.mov, …
+    func uniqueURL(_ base: String) -> URL {
+        var url = directory.appendingPathComponent(base).appendingPathExtension("mov")
+        var n = 2
+        while FileManager.default.fileExists(atPath: url.path) {
+            url = directory.appendingPathComponent("\(base)_\(n)").appendingPathExtension("mov")
+            n += 1
+        }
+        return url
     }
 
     /// Shared export path: Core Image per frame, HEVC when the asset allows it.
@@ -261,7 +282,6 @@ final class RecordingLibrary {
             throw NSError(domain: "TRCamera", code: 2, userInfo: [NSLocalizedDescriptionKey: "Exportação indisponível para este arquivo."])
         }
         session.videoComposition = composition
-        try? FileManager.default.removeItem(at: output)
         if #available(iOS 18.0, *) {
             let watcher = Task {
                 for await state in session.states(updateInterval: 0.25) {

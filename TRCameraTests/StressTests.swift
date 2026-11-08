@@ -52,6 +52,25 @@ final class FilterExportTests: XCTestCase {
         XCTAssertEqual(writer.status, .completed, writer.error?.localizedDescription ?? "")
     }
 
+    /// Code values as stored in the file (YUV→RGB only, no colour management),
+    /// which is the domain both the preview and the export work in.
+    static func rawMiddlePixel(of url: URL) async throws -> (Int, Int, Int) {
+        let asset = AVURLAsset(url: url)
+        let track = try await asset.loadTracks(withMediaType: .video)[0]
+        let reader = try AVAssetReader(asset: asset)
+        let output = AVAssetReaderTrackOutput(track: track, outputSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA])
+        reader.add(output)
+        XCTAssertTrue(reader.startReading())
+        var sample = output.copyNextSampleBuffer()
+        for _ in 0..<5 { if let next = output.copyNextSampleBuffer() { sample = next } }
+        let pb = try XCTUnwrap(sample.flatMap(CMSampleBufferGetImageBuffer))
+        CVPixelBufferLockBaseAddress(pb, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pb, .readOnly) }
+        let w = CVPixelBufferGetWidth(pb), h = CVPixelBufferGetHeight(pb), row = CVPixelBufferGetBytesPerRow(pb)
+        let p = CVPixelBufferGetBaseAddress(pb)!.assumingMemoryBound(to: UInt8.self) + (h / 2) * row + (w / 2) * 4
+        return (Int(p[2]), Int(p[1]), Int(p[0]))
+    }
+
     static func middlePixel(of url: URL) async throws -> (Int, Int, Int) {
         let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
         generator.requestedTimeToleranceBefore = .zero
@@ -114,18 +133,52 @@ final class FilterExportTests: XCTestCase {
         let source = dir.appendingPathComponent("TR_parity.mov")
         try Self.makeClip(at: source, color: (180, 120, 90))
         let item = try XCTUnwrap(library.items().first)
-        let srcPixel = try await Self.middlePixel(of: source)
+        let srcPixel = try await Self.rawMiddlePixel(of: source)
         let ctx = CIContext(options: [.workingColorSpace: NSNull(), .outputColorSpace: NSNull()])
-        for look in [VideoLook.tealOrange, .warmFilm, .coolBlue, .vivid, .mono] {
+        for look in [VideoLook.tealOrange, .warmFilm, .coolBlue, .vivid, .mono, .bleachBypass, .chrome] {
             let input = CIImage(color: CIColor(red: CGFloat(srcPixel.0) / 255, green: CGFloat(srcPixel.1) / 255, blue: CGFloat(srcPixel.2) / 255))
                 .cropped(to: CGRect(x: 0, y: 0, width: 32, height: 32))
             var px = [UInt8](repeating: 0, count: 4)
             ctx.render(look.apply(to: input), toBitmap: &px, rowBytes: 4, bounds: CGRect(x: 16, y: 16, width: 1, height: 1), format: .RGBA8, colorSpace: nil)
             let out = try await library.exportCopy(of: item, look: look)
-            let exported = try await Self.middlePixel(of: out)
+            let exported = try await Self.rawMiddlePixel(of: out)
             let diff = max(abs(Int(px[0]) - exported.0), abs(Int(px[1]) - exported.1), abs(Int(px[2]) - exported.2))
             XCTAssertLessThan(diff, 14, "\(look): preview \(px[0]),\(px[1]),\(px[2]) vs export \(exported)")
         }
+    }
+
+    /// Filter applied after recording on a Log clip: view LUT then look, exactly as
+    /// the monitoring processor draws it.
+    func testAutoFilterWithLUTMatchesPreview() async throws {
+        let library = RecordingLibrary(directory: dir)
+        let source = dir.appendingPathComponent("TR_log.mov")
+        try Self.makeClip(at: source, color: (110, 100, 95)) // flat, Log-like grey
+        let item = try XCTUnwrap(library.items().first)
+        let lut = BuiltInLUT.appleLogTo709.make()
+        let srcPixel = try await Self.rawMiddlePixel(of: source)
+
+        var settings = MonitoringSettings()
+        settings.look = .tealOrange
+        settings.histogramEnabled = false
+        let frame = CIImage(color: CIColor(red: CGFloat(srcPixel.0) / 255, green: CGFloat(srcPixel.1) / 255, blue: CGFloat(srcPixel.2) / 255))
+            .cropped(to: CGRect(x: 0, y: 0, width: 64, height: 36))
+        let preview = MonitoringProcessor().process(frame, settings: settings, lut: lut, fitting: CGSize(width: 64, height: 36))
+        var px = [UInt8](repeating: 0, count: 4)
+        let ctx = CIContext(options: [.workingColorSpace: NSNull(), .outputColorSpace: NSNull()])
+        ctx.render(preview, toBitmap: &px, rowBytes: 4, bounds: CGRect(x: 32, y: 18, width: 1, height: 1), format: .RGBA8, colorSpace: nil)
+
+        let withLUT = try await library.exportCopy(of: item, look: .tealOrange, lut: lut)
+        let exported = try await Self.rawMiddlePixel(of: withLUT)
+        let diff = max(abs(Int(px[0]) - exported.0), abs(Int(px[1]) - exported.1), abs(Int(px[2]) - exported.2))
+        XCTAssertLessThan(diff, 14, "preview \(px[0]),\(px[1]),\(px[2]) vs export \(exported)")
+
+        // The LUT must really be in the file (Log → 709 lifts contrast/brightness).
+        let lookOnly = try await Self.rawMiddlePixel(of: library.exportCopy(of: item, look: .tealOrange))
+        XCTAssertGreaterThan(abs(exported.0 - lookOnly.0) + abs(exported.1 - lookOnly.1) + abs(exported.2 - lookOnly.2), 15)
+
+        let copy = try XCTUnwrap(library.items().first { $0.url.lastPathComponent == withLUT.lastPathComponent })
+        XCTAssertEqual(copy.metadata?.editLabel, VideoLook.tealOrange.title)
+        XCTAssertEqual(copy.metadata?.lut, lut.title)
     }
 }
 
@@ -316,6 +369,19 @@ final class StorageStressTests: XCTestCase {
     func testRefusesToRecordWithoutSpace() {
         let library = RecordingLibrary(directory: FileManager.default.temporaryDirectory)
         XCTAssertThrowsError(try library.nextURL(destination: .appStorage, minimumBytes: Int64.max / 2))
+    }
+
+    func testExportsNeverOverwriteEarlierCopies() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("uniq-\(UUID())")
+        let library = RecordingLibrary(directory: dir)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let first = library.uniqueURL("TR_a_mono")
+        XCTAssertEqual(first.lastPathComponent, "TR_a_mono.mov")
+        FileManager.default.createFile(atPath: first.path, contents: Data([1]))
+        let second = library.uniqueURL("TR_a_mono")
+        XCTAssertEqual(second.lastPathComponent, "TR_a_mono_2.mov")
+        FileManager.default.createFile(atPath: second.path, contents: Data([2]))
+        XCTAssertEqual(library.uniqueURL("TR_a_mono").lastPathComponent, "TR_a_mono_3.mov")
     }
 
     func testMetadataItemsCarryTechnicalJSON() throws {

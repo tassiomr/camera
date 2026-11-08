@@ -253,6 +253,13 @@ struct CameraScreen: View {
                 if let banner = model.banner { BannerView(banner: banner).transition(.move(edge: .bottom).combined(with: .opacity)) }
             }
             .padding(8)
+            if let job = model.postProcess {
+                PostProcessPill(status: job)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .padding(.top, 10)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .allowsHitTesting(false)
+            }
             if model.isDemo {
                 Text("DEMO").font(Theme.label(9)).padding(.horizontal, 6).padding(.vertical, 3)
                     .background(Capsule().fill(Theme.warning)).foregroundStyle(.black)
@@ -263,6 +270,7 @@ struct CameraScreen: View {
         .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
         .overlay(RoundedRectangle(cornerRadius: Theme.corner).stroke(model.isRecording ? Theme.recording : .clear, lineWidth: 2))
         .animation(.snappy, value: model.banner)
+        .animation(.snappy, value: model.postProcess == nil)
     }
 
     @ViewBuilder private var scopes: some View {
@@ -441,6 +449,23 @@ struct BannerView: View {
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.black.opacity(0.8)))
         .frame(maxWidth: 520)
+    }
+}
+
+/// Shown while the chosen filter is being applied to a just-recorded clip.
+struct PostProcessPill: View {
+    var status: PostProcessStatus
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView(value: status.progress)
+                .progressViewStyle(.circular).tint(Theme.accent).controlSize(.small)
+            Text("Aplicando \(status.title)… \(Int(status.progress * 100))%\(status.remaining > 1 ? " · +\(status.remaining - 1)" : "")")
+                .font(.system(size: 12, weight: .semibold)).monospacedDigit()
+        }
+        .padding(.horizontal, 12).frame(height: 32)
+        .background(Capsule().fill(.black.opacity(0.75)))
+        .overlay(Capsule().stroke(Theme.accent.opacity(0.5), lineWidth: 1))
+        .accessibilityElement(children: .combine)
     }
 }
 

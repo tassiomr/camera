@@ -1,7 +1,7 @@
 # Luminous Cam — Diretriz do projeto
 
 Bundle ID: **`com.trmedia.camera`** · Nome exibido: **Luminous Cam** · iOS mínimo **17.0** · iPhone · SwiftUI + AVFoundation + Core Image/Metal
-Estado em 07/11/2026: **Fases 1–3 completas, Fase 4 parcial, site pronto.** Compila sem warnings para iPhone físico; **70/70 testes passando** no simulador.
+Estado em 07/11/2026: **Fases 1–3 completas, Fase 4 parcial, site pronto.** Compila sem warnings para iPhone físico; **72/72 testes passando** no simulador.
 
 ---
 
@@ -90,7 +90,12 @@ npx vercel --prod
 
 ### F12. Filtros criativos (looks) → `Core/Processing/VideoLook.swift`
 - 12 looks com filtros nativos do Core Image: Original, Vivid, Teal & Orange, Warm Film, Cool, Fade, Bleach, Vintage, Mono, Noir, Chrome e Dream.
-- **Ao vivo:** o chip **FILTRO** na barra superior abre uma faixa de looks sobre o preview. O filtro aparece só na visualização, e o arquivo é gravado limpo. O look usado fica registrado nos metadados como "somente preview".
+- **Ao gravar:** o chip **FILTRO** escolhe o look, mostrado ao vivo. A câmera sempre grava o sinal limpo, sem risco para o take. **Ao parar de gravar, o filtro é aplicado automaticamente** num novo arquivo, com o mesmo pipeline da exportação.
+  - Se uma LUT de visualização estiver ativa, ela entra antes do look, na mesma ordem do preview. Com isso, o Log + look sai como foi visto.
+  - Um indicador "Aplicando X… %" aparece no preview. Vários clipes entram numa fila, e o processo continua se o app for para segundo plano (background task).
+  - Configurações › Filtros › "Manter também o original sem filtro" vem ligado por padrão. Desligado, o original só é apagado depois de confirmar que a versão filtrada é reproduzível.
+  - Cópias nunca sobrescrevem cópias anteriores (`_2`, `_3`…). O vídeo filtrado sai em HEVC, mesmo de um original ProRes.
+  - Validar no iPhone real: o tempo de processamento em 4K e o aquecimento ao gravar clipes seguidos.
 - **No vídeo:** na Biblioteca, **"Exportar cópia com filtro"** gera um novo `.mov` (HEVC, `AVVideoComposition` + `AVAssetExportSession`) com o look aplicado. **O original é mantido.**
 - O mesmo código aplica o look no preview e na exportação (o raio do Dream é proporcional à largura para manter o resultado igual).
 - Limitações: os looks foram pensados para material Rec.709. Em Log, use a LUT no preview. Gravar já com o filtro aplicado exige o pipeline `AVAssetWriter` (Fase 4).

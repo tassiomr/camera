@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Horizontal strip of creative looks. Selecting one changes only the preview;
-/// a filtered copy can be exported later from the library.
+/// Horizontal strip of creative looks. The selected look is shown live and is
+/// applied to the clip automatically when recording stops (the camera itself
+/// always records the clean stream).
 struct LookPicker: View {
     @Binding var selection: VideoLook
 

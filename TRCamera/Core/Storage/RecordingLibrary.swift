@@ -120,7 +120,7 @@ final class RecordingLibrary {
         return [
             item(.quickTimeMetadataMake, "Apple"),
             item(.quickTimeMetadataModel, meta.deviceModel),
-            item(.quickTimeMetadataSoftware, "TR Camera"),
+            item(.quickTimeMetadataSoftware, "Luminous Cam"),
             item(.quickTimeMetadataCreationDate, ISO8601DateFormatter().string(from: meta.createdAt)),
             item(.quickTimeMetadataDescription, summary)
         ]

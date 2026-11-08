@@ -258,11 +258,11 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/TRCamera-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "TR Camera";
+				INFOPLIST_KEY_CFBundleDisplayName = "Luminous Cam";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "O Luminous Cam usa a câmera para gravar vídeos. Nada é enviado para fora do seu iPhone.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "O Luminous Cam usa o microfone para gravar o áudio dos seus vídeos.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "O Luminous Cam usa o microfone para gravar o áudio dos seus vídeos e, se você ativar, detectar as batidas da música. Tudo é processado no seu iPhone.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "O Luminous Cam usa o acelerômetro para exibir o indicador de nível.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "O Luminous Cam salva no app Fotos apenas os vídeos que você escolher exportar.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -295,11 +295,11 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/TRCamera-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "TR Camera";
+				INFOPLIST_KEY_CFBundleDisplayName = "Luminous Cam";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "O Luminous Cam usa a câmera para gravar vídeos. Nada é enviado para fora do seu iPhone.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "O Luminous Cam usa o microfone para gravar o áudio dos seus vídeos.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "O Luminous Cam usa o microfone para gravar o áudio dos seus vídeos e, se você ativar, detectar as batidas da música. Tudo é processado no seu iPhone.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "O Luminous Cam usa o acelerômetro para exibir o indicador de nível.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "O Luminous Cam salva no app Fotos apenas os vídeos que você escolher exportar.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

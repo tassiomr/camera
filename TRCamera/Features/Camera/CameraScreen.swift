@@ -482,7 +482,7 @@ struct PermissionDeniedView: View {
     var body: some View {
         VStack(spacing: 16) {
             MessageStateView(icon: "video.badge.ellipsis", title: "Acesso à câmera necessário",
-                             message: "O TR Camera precisa da câmera para gravar. Tudo é processado localmente — nada é enviado para servidores.")
+                             message: "O Luminous Cam precisa da câmera para gravar. Tudo é processado localmente — nada é enviado para servidores.")
             Button("Abrir Ajustes") {
                 if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
             }

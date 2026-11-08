@@ -400,7 +400,7 @@ final class CameraViewModel {
             return
         }
         guard microphoneAuthorized else {
-            show(.error, "A detecção de batidas precisa do microfone. Ative em Ajustes › TR Camera.")
+            show(.error, "A detecção de batidas precisa do microfone. Ative em Ajustes › Luminous Cam.")
             beatEffect = .off
             return
         }

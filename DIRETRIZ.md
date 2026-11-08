@@ -1,6 +1,6 @@
-# TR Camera — Diretriz do projeto
+# Luminous Cam — Diretriz do projeto
 
-Bundle ID: **`com.trmedia.camera`** · Nome exibido: **TR Camera** · iOS mínimo **17.0** · iPhone · SwiftUI + AVFoundation + Core Image/Metal
+Bundle ID: **`com.trmedia.camera`** · Nome exibido: **Luminous Cam** · iOS mínimo **17.0** · iPhone · SwiftUI + AVFoundation + Core Image/Metal
 Estado em 07/11/2026: **Fases 1–3 completas, Fase 4 parcial, site pronto.** Compila sem warnings para iPhone físico; **65/65 testes passando** no simulador.
 
 ---
@@ -73,10 +73,12 @@ Arquivos novos colocados em `TRCamera/` entram no target automaticamente (pastas
 - Estados: inicialização, câmera negada (com botão Ajustes), sem câmera, microfone negado (grava sem áudio e avisa), banners de erro/aviso.
 
 ### F10. Ícone → `Resources/Assets.xcassets/AppIcon.appiconset`
-- Na estética do Luminous: fundo grafite, **crescente luminoso menta→azul-violeta** como anel da lente, vidro escuro com anéis e o **ponto de luz** no topo. Inclui variante *tinted* do iOS.
+- Mesma família visual do Luminous (fundo grafite, luz menta→azul→violeta, **ponto de luz** com flare), mas com forma própria de câmera: um **diafragma de 6 lâminas** com vidro escuro na abertura. O crescente foi abandonado porque lembrava o ícone de playlist do Luminous. Inclui variante *tinted* do iOS; o site usa o mesmo ícone (`public/assets`).
 - Gerador reproduzível em `tools/make_icon.swift` (`swiftc -O tools/make_icon.swift -o mk && ./mk AppIcon.png`).
 
 ### F11. Site (Vercel) → `public/`
+- Visual no estilo Luminous: aurora de fundo, vidro, mockup do app feito só em CSS (preview com o efeito punch no ritmo), seções de recursos, “No ritmo”, filtros e privacidade. Páginas legais com índice lateral; suporte em formato de perguntas frequentes.
+- Usa só fontes do sistema: o site não faz nenhuma requisição a terceiros (sem Google Fonts, scripts ou cookies), coerente com a política de privacidade.
 - `index.html` (landing), `privacidade.html`, `termos.html`, `suporte.html`, `styles.css`. O `vercel.json` fica na **raiz do repositório** e publica a pasta `public` sem etapa de build (URLs limpas: `/privacidade`, `/termos`, `/suporte`; redirects de `/privacy`, `/terms`, `/support`; headers de segurança).
 - **Antes de publicar:** troque `CONTATO_EMAIL` (aparece em 3 arquivos) pelo e-mail de contato real e confirme o nome da empresa (“TR Media”).
 - Deploy:

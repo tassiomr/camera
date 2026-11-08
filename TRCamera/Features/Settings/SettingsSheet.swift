@@ -135,7 +135,7 @@ struct SettingsSheet: View {
                     Text("Esta entrada não permite ajuste de ganho pelo iOS.").font(.footnote).foregroundStyle(.secondary)
                 }
             } else {
-                Text("Microfone não autorizado: os vídeos serão gravados sem áudio. Ative em Ajustes › TR Camera.")
+                Text("Microfone não autorizado: os vídeos serão gravados sem áudio. Ative em Ajustes › Luminous Cam.")
                     .font(.footnote).foregroundStyle(Theme.warning)
             }
         } header: { Text("Áudio") }

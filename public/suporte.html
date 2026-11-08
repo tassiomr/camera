@@ -3,41 +3,76 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Suporte — TR Camera</title>
-  <meta name="theme-color" content="#07090c">
+  <title>Suporte — Luminous Cam</title>
+  <meta name="description" content="Ajuda e perguntas frequentes do aplicativo Luminous Cam.">
+  <meta name="theme-color" content="#06070a">
   <link rel="icon" href="/assets/icon-256.png">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="apple-touch-icon" href="/assets/icon-256.png">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+  <div class="aurora" aria-hidden="true"></div>
   <header class="nav">
     <div class="wrap">
-      <a class="brand" href="/"><img src="/assets/icon-256.png" alt="">TR Camera</a>
-      <nav class="nav-links"><a href="/privacidade">Privacidade</a><a href="/termos">Termos</a></nav>
+      <a class="brand" href="/"><img src="/assets/icon-256.png" alt="">Luminous Cam</a>
+      <nav class="nav-links"><a href="/privacidade">Privacidade</a><a href="/termos">Termos</a><a class="pill-link" href="/suporte">Suporte</a></nav>
     </div>
   </header>
-  <main class="legal">
-    <h1>Suporte</h1>
-    <p class="updated">Precisa de ajuda? Escreva para <a href="mailto:CONTATO_EMAIL">CONTATO_EMAIL</a>.</p>
 
-    <h2>Por que uma opção não aparece no meu iPhone?</h2>
-    <p>O TR Camera mostra apenas o que a lente selecionada realmente suporta. Por exemplo, Apple Log e ProRes existem só em iPhones Pro compatíveis, e algumas combinações (como Log a 4K 120 fps) não existem em nenhum modelo. Toque no ícone de processador para ver o perfil completo do seu iPhone.</p>
+  <main>
+    <section class="legal-hero">
+      <div class="wrap">
+        <span class="eyebrow">Suporte</span>
+        <h1>Como podemos ajudar?</h1>
+        <p class="updated">As dúvidas mais comuns estão aqui. Se não encontrar a resposta, escreva para a gente.</p>
+      </div>
+    </section>
 
-    <h2>O que significa “EMUL” no obturador?</h2>
-    <p>No iOS 17 a 26 não há prioridade de obturador nativa para apps. O TR Camera ajusta o ISO automaticamente para manter a exposição com o obturador que você escolheu. A partir do iOS 27 o recurso é nativo.</p>
+    <div class="wrap">
+      <div class="contact-card">
+        <div>
+          <strong>Fale com a gente</strong>
+          <p>Conte o modelo do iPhone e a versão do iOS — isso ajuda muito.</p>
+        </div>
+        <a class="btn primary" href="mailto:CONTATO_EMAIL">CONTATO_EMAIL</a>
+      </div>
 
-    <h2>A LUT altera meu vídeo?</h2>
-    <p>Não. LUT, false color, zebra, focus peaking e desqueeze afetam apenas a visualização. O arquivo é gravado exatamente no perfil escolhido.</p>
-
-    <h2>Onde ficam os vídeos?</h2>
-    <p>No app Arquivos › No meu iPhone › TR Camera › Recordings, ou no SSD que você escolheu como destino. Use “Salvar no Fotos” para levá-los à fototeca.</p>
-
-    <h2>Gravação em SSD</h2>
-    <p>Disponível em iPhones com USB-C e iOS 17 ou posterior. Conecte o drive, escolha “SSD externo” em Configurações › Armazenamento e autorize o acesso.</p>
+      <div class="faq">
+        <details open>
+          <summary>Por que uma opção não aparece no meu iPhone?</summary>
+          <p>O Luminous Cam mostra apenas o que a lente selecionada realmente suporta. Apple Log e ProRes existem só em iPhones Pro compatíveis, e algumas combinações (como Log a 4K 120 fps) não existem em nenhum modelo. Toque em “Lente” para ver o perfil completo do seu iPhone.</p>
+        </details>
+        <details>
+          <summary>O que significa “EMUL” no obturador?</summary>
+          <p>No iOS 17 a 26 não há prioridade de obturador nativa para apps. O Luminous Cam ajusta o ISO automaticamente para manter a exposição com o obturador que você escolheu. A partir do iOS 27 o recurso é nativo.</p>
+        </details>
+        <details>
+          <summary>Filtros, LUT e zebra alteram meu vídeo?</summary>
+          <p>Não. Filtros, LUT, false color, zebra, focus peaking e desqueeze aparecem só na visualização. O arquivo é gravado limpo, no perfil escolhido. Para ter o filtro no vídeo, use “Exportar cópia com filtro” na Biblioteca — o original é mantido.</p>
+        </details>
+        <details>
+          <summary>Como funcionam os efeitos no ritmo da música?</summary>
+          <p>Toque em “Batida” e escolha um efeito: o preview pulsa no ritmo e mostra o BPM. Depois, na Biblioteca, “Editar no ritmo da música” analisa o áudio do clipe e cria uma cópia com o efeito em cada batida. Funciona melhor com música alta e batida marcada; em ambientes muito barulhentos algumas batidas podem não ser detectadas. Músicas protegidas do Apple Music não podem ser analisadas.</p>
+        </details>
+        <details>
+          <summary>Onde ficam os vídeos?</summary>
+          <p>No app Arquivos › No meu iPhone › Luminous Cam › Recordings, ou no SSD que você escolheu como destino. Use “Salvar no Fotos” para levá-los à fototeca.</p>
+        </details>
+        <details>
+          <summary>Como gravar direto num SSD?</summary>
+          <p>Disponível em iPhones com USB-C e iOS 17 ou posterior. Conecte o drive, escolha “SSD externo” em Configurações › Armazenamento e autorize o acesso.</p>
+        </details>
+        <details>
+          <summary>O iPhone esquentou e as ferramentas sumiram. É normal?</summary>
+          <p>Sim. Quando o sistema avisa que está quente, o Luminous Cam pausa histograma, filtros e outras ferramentas para proteger a gravação. Elas voltam sozinhas quando a temperatura normaliza.</p>
+        </details>
+      </div>
+    </div>
   </main>
+
   <footer>
     <div class="wrap">
-      <span>© 2026 TR Media</span>
+      <span>© 2026 TR Media. Todos os direitos reservados.</span>
       <nav><a href="/">Início</a><a href="/privacidade">Privacidade</a><a href="/termos">Termos de Uso</a></nav>
     </div>
   </footer>

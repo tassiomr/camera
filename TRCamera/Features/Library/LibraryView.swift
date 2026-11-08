@@ -12,7 +12,7 @@ struct LibraryView: View {
         NavigationStack {
             ScrollView {
                 if items.isEmpty {
-                    MessageStateView(icon: "film.stack", title: "Nenhum vídeo ainda", message: "Suas gravações aparecem aqui e também no app Arquivos › TR Camera.")
+                    MessageStateView(icon: "film.stack", title: "Nenhum vídeo ainda", message: "Suas gravações aparecem aqui e também no app Arquivos › Luminous Cam.")
                         .padding(.top, 60)
                 }
                 LazyVGrid(columns: columns, spacing: 6) {

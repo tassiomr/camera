@@ -29,7 +29,7 @@
 
 ## 2. Matriz de compatibilidade
 
-Legenda das camadas: **HW** = existe no hardware · **iOS** = exposto pelo sistema · **3P** = acessível a apps de terceiros · **Apple-only** = só no app Câmera · **Próprio** = implementado por processamento do TR Camera · **Inviável**.
+Legenda das camadas: **HW** = existe no hardware · **iOS** = exposto pelo sistema · **3P** = acessível a apps de terceiros · **Apple-only** = só no app Câmera · **Próprio** = implementado por processamento do Luminous Cam · **Inviável**.
 
 | Recurso | Camada | Compatibilidade | API | Restrições |
 |---|---|---|---|---|
@@ -66,7 +66,7 @@ Justificativa: é a primeira versão com `RotationCoordinator`, Apple Log, `AVEx
 
 ## 4. Concorrentes (análise)
 
-| App | Pontos fortes | Pontos fracos / reclamações | Oportunidade para o TR Camera |
+| App | Pontos fortes | Pontos fracos / reclamações | Oportunidade para o Luminous Cam |
 |---|---|---|---|
 | Blackmagic Camera | Gratuito, controles de cinema completos, ProRes/Log, gravação externa, Blackmagic Cloud | Interface densa, curva de aprendizado alta | Modo Simple + advisor que explica escolhas |
 | Final Cut Camera | Integração com Final Cut Pro iPad (multicam ao vivo), interface limpa | Menos ferramentas de exposição, focado no ecossistema FCP | Monitoramento mais rico (waveform, false color) |

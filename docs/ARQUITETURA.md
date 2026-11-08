@@ -1,4 +1,4 @@
-# Arquitetura — TR Camera (`com.trmedia.camera`)
+# Arquitetura — Luminous Cam (`com.trmedia.camera`)
 
 ```
 TRCamera/

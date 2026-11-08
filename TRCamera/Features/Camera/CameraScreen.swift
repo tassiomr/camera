@@ -40,7 +40,7 @@ struct CameraScreen: View {
             DebugLaunch.apply(to: model) { sheet = $0 }
         }
         .onChange(of: scenePhase) { _, phase in model.scenePhaseChanged(phase) }
-        .sheet(item: $sheet) { sheet in
+        .sheet(item: $sheet, onDismiss: model.refreshLibrary) { sheet in
             Group {
                 switch sheet {
                 case .settings: SettingsSheet(model: model)
@@ -444,16 +444,35 @@ struct BannerView: View {
     }
 }
 
+/// Fills whatever frame it is given and never draws outside it: the image is an
+/// overlay of a flexible background, so scaledToFill cannot grow the layout.
 struct ThumbnailView: View {
     var url: URL?
     @State private var image: UIImage?
+    private static let cache = NSCache<NSURL, UIImage>()
+
     var body: some View {
-        ZStack {
-            Theme.card
-            if let image { Image(uiImage: image).resizable().scaledToFill() } else { Image(systemName: "photo.on.rectangle").foregroundStyle(Theme.textSecondary) }
-        }
-        .task(id: url) { image = nil; if let url { image = await RecordingLibrary.thumbnail(for: url) } }
+        Theme.card
+            .overlay {
+                if let image {
+                    Image(uiImage: image).resizable().scaledToFill()
+                } else {
+                    Image(systemName: "film").foregroundStyle(Theme.textSecondary)
+                }
+            }
+            .clipped()
+            .task(id: url) {
+                guard let url else { image = nil; return }
+                if let cached = Self.cache.object(forKey: url as NSURL) { image = cached; return }
+                image = nil
+                if let thumb = await RecordingLibrary.thumbnail(for: url) {
+                    Self.cache.setObject(thumb, forKey: url as NSURL)
+                    image = thumb
+                }
+            }
     }
+
+    static func invalidate(_ url: URL) { cache.removeObject(forKey: url as NSURL) }
 }
 
 struct LaunchStateView: View {

@@ -461,6 +461,9 @@ final class CameraViewModel {
         }
     }
 
+    /// The library sheet can rename, delete or add copies; keep the camera's thumbnail in sync.
+    func refreshLibrary() { lastRecording = library.items().first }
+
     private var pendingMetadata: RecordingMetadata?
 
     private func currentMetadata() -> RecordingMetadata {

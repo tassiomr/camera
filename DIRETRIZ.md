@@ -1,7 +1,7 @@
 # Luminous Cam — Diretriz do projeto
 
 Bundle ID: **`com.trmedia.camera`** · Nome exibido: **Luminous Cam** · iOS mínimo **17.0** · iPhone · SwiftUI + AVFoundation + Core Image/Metal
-Estado em 07/11/2026: **Fases 1–3 completas, Fase 4 parcial, site pronto.** Compila sem warnings para iPhone físico; **65/65 testes passando** no simulador.
+Estado em 07/11/2026: **Fases 1–3 completas, Fase 4 parcial, site pronto.** Compila sem warnings para iPhone físico; **70/70 testes passando** no simulador.
 
 ---
 

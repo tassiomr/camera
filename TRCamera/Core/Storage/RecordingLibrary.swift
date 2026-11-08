@@ -23,6 +23,19 @@ struct RecordingMetadata: Codable, Hashable {
     /// Beats detected live from the microphone (approximate) or from the file.
     var beatMap: BeatMap? = nil
     var beatEffect: String? = nil
+
+    /// Sidecar for a copy whose source clip had no metadata.
+    static func exportedCopy() -> RecordingMetadata {
+        RecordingMetadata(createdAt: Date(), deviceModel: "", systemVersion: "", camera: "", resolution: "", frameRate: 0,
+                          codec: "", colorProfile: "", stabilization: "")
+    }
+
+    /// Short label of what was baked into an exported copy ("Mono", "Flash no ritmo").
+    var editLabel: String? {
+        if let beatEffect { return beatEffect }
+        guard let look, !look.contains("(somente preview)") else { return nil }
+        return look
+    }
 }
 
 struct RecordingItem: Identifiable, Hashable {
@@ -182,16 +195,17 @@ final class RecordingLibrary {
     }
 
     /// Renders a new file with the look baked in. The original clip is never modified.
-    func exportCopy(of item: RecordingItem, look: VideoLook) async throws -> URL {
+    func exportCopy(of item: RecordingItem, look: VideoLook, progress: (@Sendable (Double) -> Void)? = nil) async throws -> URL {
         // Same signal handling as the live preview (no color management) so the
         // exported copy matches what was seen on screen.
         let output = directory.appendingPathComponent("\(item.name)_\(look.rawValue).mov")
-        try await render(item, to: output) { image, _ in look.apply(to: image) }
-        if var meta = item.metadata {
-            meta.createdAt = Date()
-            meta.look = look.title
-            writeSidecar(meta, for: output)
-        }
+        try await render(item, to: output, progress: progress) { image, _ in look.apply(to: image) }
+        // Always write a sidecar so the library can label the copy, even when the
+        // source clip had none.
+        var meta = item.metadata ?? .exportedCopy()
+        meta.createdAt = Date()
+        meta.look = look.title
+        writeSidecar(meta, for: output)
         return output
     }
 
@@ -208,29 +222,30 @@ final class RecordingLibrary {
     /// Analyses the clip's own audio (more precise than the live detection, since the
     /// whole track is known) and renders a copy with `effect` on every beat.
     /// The original file is never modified.
-    func exportBeatEdit(of item: RecordingItem, effect: BeatEffect, look: VideoLook = .none) async throws -> (url: URL, beats: BeatMap) {
+    func exportBeatEdit(of item: RecordingItem, effect: BeatEffect, look: VideoLook = .none,
+                        progress: (@Sendable (Double) -> Void)? = nil) async throws -> (url: URL, beats: BeatMap) {
         guard let audio = try await AudioSamples.read(item.url), !audio.samples.isEmpty else { throw BeatExportError.noAudio }
         let analysed = BeatAnalysis.analyze(samples: audio.samples, sampleRate: audio.sampleRate)
         guard !analysed.beats.isEmpty else { throw BeatExportError.noBeats }
         let map = analysed.thinned(minInterval: effect.minimumBeatInterval)
         let output = directory.appendingPathComponent("\(item.name)_ritmo_\(effect.rawValue).mov")
-        try await render(item, to: output) { image, time in
+        try await render(item, to: output, progress: progress) { image, time in
             let pulse = map.pulse(at: time)
             let seed = map.beats.lastIndex { $0 <= time } ?? 0
             return effect.apply(to: look.apply(to: image), amount: pulse, seed: seed)
         }
-        if var meta = item.metadata {
-            meta.createdAt = Date()
-            meta.look = look == .none ? nil : look.title
-            meta.beatMap = analysed
-            meta.beatEffect = effect.title
-            writeSidecar(meta, for: output)
-        }
+        var meta = item.metadata ?? .exportedCopy()
+        meta.createdAt = Date()
+        meta.look = look == .none ? nil : look.title
+        meta.beatMap = analysed
+        meta.beatEffect = effect.title
+        writeSidecar(meta, for: output)
         return (output, analysed)
     }
 
     /// Shared export path: Core Image per frame, HEVC when the asset allows it.
-    private func render(_ item: RecordingItem, to output: URL, frame: @escaping @Sendable (CIImage, Double) -> CIImage) async throws {
+    private func render(_ item: RecordingItem, to output: URL, progress: (@Sendable (Double) -> Void)? = nil,
+                        frame: @escaping @Sendable (CIImage, Double) -> CIImage) async throws {
         let asset = AVURLAsset(url: item.url)
         let context = CIContext(options: [.workingColorSpace: NSNull(), .outputColorSpace: NSNull()])
         let composition = try await AVVideoComposition.videoComposition(with: asset) { request in
@@ -248,6 +263,12 @@ final class RecordingLibrary {
         session.videoComposition = composition
         try? FileManager.default.removeItem(at: output)
         if #available(iOS 18.0, *) {
+            let watcher = Task {
+                for await state in session.states(updateInterval: 0.25) {
+                    if case .exporting(let p) = state { progress?(p.fractionCompleted) }
+                }
+            }
+            defer { watcher.cancel() }
             try await session.export(to: output, as: .mov)
         } else {
             session.outputURL = output
@@ -255,6 +276,7 @@ final class RecordingLibrary {
             await session.export()
             if let error = session.error { throw error }
         }
+        progress?(1)
     }
 
     static func thumbnail(for url: URL) async -> UIImage? {

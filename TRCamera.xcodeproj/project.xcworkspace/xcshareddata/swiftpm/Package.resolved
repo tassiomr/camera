@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tassiomr/TRDesignSystem.git",
       "state" : {
-        "revision" : "4b50d14566a11cabbb08d15e7c6f6442d6ffa244",
-        "version" : "0.1.0"
+        "revision" : "1bf322724f451b1a1735c316581a2fbeebc73600",
+        "version" : "0.2.0"
       }
     }
   ],

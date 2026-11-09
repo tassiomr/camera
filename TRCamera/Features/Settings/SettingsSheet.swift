@@ -1,9 +1,11 @@
 import SwiftUI
+import TRDesignSystem
 import UniformTypeIdentifiers
 
 struct SettingsSheet: View {
     @Bindable var model: CameraViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.trTheme) private var theme
     @State private var importingLUT = false
     @State private var audioInputs: [AudioRouteManager.Input] = []
     @State private var selectedInput: String?
@@ -12,24 +14,27 @@ struct SettingsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                formatSection
-                monitoringSection
-                guidesSection
-                audioSection
-                storageSection
-                Section {
-                    Toggle("Manter também o original sem filtro", isOn: $model.keepOriginalWhenFiltering)
-                } header: { Text("Filtros") } footer: {
-                    Text("Com um filtro escolhido, o vídeo é gravado limpo e o filtro é aplicado logo ao parar de gravar. Ligado, você fica com as duas versões (ocupa o dobro de espaço). O vídeo filtrado sai em HEVC.")
+                Group {
+                    formatSection
+                    monitoringSection
+                    guidesSection
+                    audioSection
+                    storageSection
+                    Section {
+                        Toggle("Manter também o original sem filtro", isOn: $model.keepOriginalWhenFiltering)
+                    } header: { Text("Filtros") } footer: {
+                        Text("Com um filtro escolhido, o vídeo é gravado limpo e o filtro é aplicado logo ao parar de gravar. Ligado, você fica com as duas versões (ocupa o dobro de espaço). O vídeo filtrado sai em HEVC.")
+                    }
+                    Section("Interface") {
+                        Picker("Modo", selection: $model.mode) { ForEach(InterfaceMode.allCases) { Text($0.label).tag($0) } }
+                    }
                 }
-                Section("Interface") {
-                    Picker("Modo", selection: $model.mode) { ForEach(InterfaceMode.allCases) { Text($0.label).tag($0) } }
-                }
+                .themedListRows()
             }
+            .themedGroupedList()
             .navigationTitle("Configurações")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } } }
-            .tint(Theme.accent)
             .fileImporter(isPresented: $importingLUT, allowedContentTypes: [UTType(filenameExtension: "cube") ?? .data]) { result in
                 do {
                     let entry = try model.lutLibrary.importLUT(from: result.get())
@@ -70,10 +75,10 @@ struct SettingsSheet: View {
                 Text("Off").tag(StabilizationMode.off)
                 ForEach(model.availableStabilization.filter { $0 != .off }) { Text($0.label).tag($0) }
             }
-            LabeledContent("Estimativa", value: "\(StorageEstimator.format(bytes: StorageEstimator.bytesPerMinute(model.configuration)))/min")
+            TRKeyValueRow("Estimativa", value: "\(StorageEstimator.format(bytes: StorageEstimator.bytesPerMinute(model.configuration)))/min", isNumeric: true)
             if let f = model.format {
-                LabeledContent("Formato ativo", value: "\(f.pixelFormat) · \(f.bitDepth)-bit\(f.isBinned ? " · binned" : "")")
-                LabeledContent("Curva / gamut", value: "\(model.configuration.colorProfile.transferCurve) · \(model.configuration.colorProfile.gamut)")
+                TRKeyValueRow("Formato ativo", value: "\(f.pixelFormat) · \(f.bitDepth)-bit\(f.isBinned ? " · binned" : "")")
+                TRKeyValueRow("Curva / gamut", value: "\(model.configuration.colorProfile.transferCurve) · \(model.configuration.colorProfile.gamut)")
             }
         } header: { Text("Formato de gravação") } footer: {
             Text("Só aparecem combinações que esta lente realmente suporta. Ao mudar uma opção, as outras se ajustam sozinhas. O tamanho por minuto é uma estimativa.")
@@ -137,11 +142,11 @@ struct SettingsSheet: View {
                         if !editing { try? AudioRouteManager.shared.setGain(gain) }
                     }
                 } else {
-                    Text("Esta entrada não permite ajuste de ganho pelo iOS.").font(.footnote).foregroundStyle(.secondary)
+                    Text("Esta entrada não permite ajuste de ganho pelo iOS.")
+                        .trTextStyle(.footnote).foregroundStyle(theme.colors.foreground.secondary)
                 }
             } else {
-                Text("Microfone não autorizado: os vídeos serão gravados sem áudio. Ative em Ajustes › Luminous Cam.")
-                    .font(.footnote).foregroundStyle(Theme.warning)
+                TRValidationMessage(.warning("Microfone não autorizado: os vídeos serão gravados sem áudio. Ative em Ajustes › Luminous Cam."))
             }
         } header: { Text("Áudio") }
     }
@@ -155,10 +160,10 @@ struct SettingsSheet: View {
                 Text("SSD externo (USB-C)").tag(1)
             }
             if let free = model.library.freeBytes {
-                LabeledContent("Livre no iPhone", value: StorageEstimator.format(bytes: Double(free)))
+                TRKeyValueRow("Livre no iPhone", value: StorageEstimator.format(bytes: Double(free)), isNumeric: true)
             }
             if let minutes = model.estimatedMinutesRemaining {
-                LabeledContent("Tempo restante (estimado)", value: StorageEstimator.format(minutes: minutes))
+                TRKeyValueRow("Tempo restante (estimado)", value: StorageEstimator.format(minutes: minutes), isNumeric: true)
             }
         } header: { Text("Armazenamento") } footer: {
             Text("A gravação externa usa a API oficial AVExternalStorageDevice (iPhone com USB-C e drive compatível). Os arquivos também ficam acessíveis no app Arquivos.")

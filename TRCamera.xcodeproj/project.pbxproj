@@ -16,6 +16,10 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXBuildFile section */
+		A10000000000000000000092 /* TRDesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000091 /* TRDesignSystem */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		A10000000000000000000011 /* TRCamera.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TRCamera.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000021 /* TRCameraTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TRCameraTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -39,6 +43,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A10000000000000000000092 /* TRDesignSystem in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -90,6 +95,7 @@
 			);
 			name = TRCamera;
 			packageProductDependencies = (
+				A10000000000000000000091 /* TRDesignSystem */,
 			);
 			productName = TRCamera;
 			productReference = A10000000000000000000011 /* TRCamera.app */;
@@ -147,6 +153,9 @@
 			);
 			mainGroup = A10000000000000000000002;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A10000000000000000000090 /* XCRemoteSwiftPackageReference "TRDesignSystem" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A10000000000000000000003 /* Products */;
 			projectDirPath = "";
@@ -384,6 +393,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A10000000000000000000090 /* XCRemoteSwiftPackageReference "TRDesignSystem" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/tassiomr/TRDesignSystem.git";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 0.2.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A10000000000000000000091 /* TRDesignSystem */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10000000000000000000090 /* XCRemoteSwiftPackageReference "TRDesignSystem" */;
+			productName = TRDesignSystem;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A10000000000000000000001 /* Project object */;
 }

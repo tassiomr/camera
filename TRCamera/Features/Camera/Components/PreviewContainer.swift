@@ -1,5 +1,6 @@
 import AVFoundation
 import SwiftUI
+import TRDesignSystem
 
 /// Hosts the low-latency AVCaptureVideoPreviewLayer and, above it, the processed
 /// monitoring layer (shown only when a tool that alters the image is active).
@@ -63,19 +64,22 @@ struct PreviewContainer: UIViewRepresentable {
 
 /// Composition guides drawn inside the real video rectangle.
 struct GuidesOverlay: View {
+    @Environment(\.trTheme) private var theme
     var settings: MonitoringSettings
     var videoAspect: CGFloat
     var roll: Double
 
     var body: some View {
+        let c = theme.colors
+        let line = c.foreground.primary
         GeometryReader { geo in
             let rect = Self.fit(aspect: videoAspect, in: geo.size)
             ZStack {
                 if let ratio = settings.aspectGuide.ratio {
                     let inner = Self.fit(aspect: CGFloat(ratio), in: rect.size).offsetBy(dx: rect.minX, dy: rect.minY)
                     Path { p in p.addRect(rect); p.addRect(inner) }
-                        .fill(Color.black.opacity(0.55), style: FillStyle(eoFill: true))
-                    Path { $0.addRect(inner) }.stroke(Theme.accent.opacity(0.8), lineWidth: 1)
+                        .fill(c.surface.scrim, style: FillStyle(eoFill: true))
+                    Path { $0.addRect(inner) }.stroke(c.foreground.accent.opacity(0.8), lineWidth: 1)
                 }
                 if settings.thirdsGrid {
                     Path { p in
@@ -85,24 +89,24 @@ struct GuidesOverlay: View {
                             p.move(to: CGPoint(x: x, y: rect.minY)); p.addLine(to: CGPoint(x: x, y: rect.maxY))
                             p.move(to: CGPoint(x: rect.minX, y: y)); p.addLine(to: CGPoint(x: rect.maxX, y: y))
                         }
-                    }.stroke(Color.white.opacity(0.28), lineWidth: 0.7)
+                    }.stroke(line.opacity(0.28), lineWidth: 0.7)
                 }
                 if settings.safeAreas {
                     Path { $0.addRect(rect.insetBy(dx: rect.width * 0.05, dy: rect.height * 0.05)) }
-                        .stroke(Color.white.opacity(0.4), style: StrokeStyle(lineWidth: 0.8, dash: [6, 4]))
+                        .stroke(line.opacity(0.4), style: StrokeStyle(lineWidth: 0.8, dash: [6, 4]))
                     Path { $0.addRect(rect.insetBy(dx: rect.width * 0.1, dy: rect.height * 0.1)) }
-                        .stroke(Color.white.opacity(0.25), style: StrokeStyle(lineWidth: 0.8, dash: [3, 4]))
+                        .stroke(line.opacity(0.25), style: StrokeStyle(lineWidth: 0.8, dash: [3, 4]))
                 }
                 if settings.centerMark {
                     Path { p in
                         p.move(to: CGPoint(x: rect.midX - 12, y: rect.midY)); p.addLine(to: CGPoint(x: rect.midX + 12, y: rect.midY))
                         p.move(to: CGPoint(x: rect.midX, y: rect.midY - 12)); p.addLine(to: CGPoint(x: rect.midX, y: rect.midY + 12))
-                    }.stroke(Color.white.opacity(0.7), lineWidth: 1)
+                    }.stroke(line.opacity(0.7), lineWidth: 1)
                 }
                 if settings.levelIndicator {
                     let level = abs(Self.levelError(roll)) < 0.6 * .pi / 180
                     Capsule()
-                        .fill(level ? Theme.accent : Color.white.opacity(0.75))
+                        .fill(level ? c.foreground.accent : line.opacity(0.75))
                         .frame(width: 90, height: 2)
                         .rotationEffect(.radians(-Self.levelError(roll)))
                         .position(x: rect.midX, y: rect.midY)
@@ -114,7 +118,7 @@ struct GuidesOverlay: View {
                                         (CGPoint(x: r.minX, y: r.maxY), 1.0, -1.0), (CGPoint(x: r.maxX, y: r.maxY), -1.0, -1.0)] {
                         p.move(to: CGPoint(x: c.x + l * dx, y: c.y)); p.addLine(to: c); p.addLine(to: CGPoint(x: c.x, y: c.y + l * dy))
                     }
-                }.stroke(Color.white.opacity(0.85), lineWidth: 1.5)
+                }.stroke(line.opacity(0.85), lineWidth: 1.5)
             }
         }
         .allowsHitTesting(false)

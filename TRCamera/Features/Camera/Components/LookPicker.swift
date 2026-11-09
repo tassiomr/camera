@@ -1,25 +1,28 @@
 import SwiftUI
+import TRDesignSystem
 
 /// Horizontal strip of creative looks. The selected look is shown live and is
 /// applied to the clip automatically when recording stops (the camera itself
 /// always records the clean stream).
 struct LookPicker: View {
+    @Environment(\.trTheme) private var theme
     @Binding var selection: VideoLook
 
     var body: some View {
+        let c = theme.colors
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
+            HStack(spacing: theme.spacing.stack.regular) {
                 ForEach(VideoLook.allCases) { look in
                     Button { selection = look } label: {
-                        VStack(spacing: 6) {
+                        VStack(spacing: theme.spacing.stack.tight + theme.spacing.xxxs) {
                             Circle()
                                 .fill(Self.swatch(look))
                                 .frame(width: 44, height: 44)
-                                .overlay(Circle().stroke(selection == look ? Theme.accent : .clear, lineWidth: 2.5).padding(-4))
-                                .shadow(color: selection == look ? Theme.accent.opacity(0.6) : .clear, radius: 8)
+                                .overlay(Circle().strokeBorder(c.border.focus.opacity(selection == look ? 1 : 0), lineWidth: TRBorder.focus).padding(-4))
                             Text(look.title)
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(selection == look ? Theme.accent : Theme.textSecondary)
+                                .trTextStyle(.caption2)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(selection == look ? c.foreground.accent : c.foreground.secondary)
                                 .lineLimit(2).multilineTextAlignment(.center)
                                 .frame(height: 26, alignment: .top)
                         }
@@ -27,16 +30,18 @@ struct LookPicker: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Filtro \(look.title)")
+                    .accessibilityAddTraits(selection == look ? .isSelected : [])
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.horizontal, theme.spacing.sm)
+            .padding(.vertical, theme.spacing.stack.regular)
         }
-        .background(RoundedRectangle(cornerRadius: Theme.corner).fill(Color.black.opacity(0.82)))
+        .previewPanelBackground()
         .sensoryFeedback(.selection, trigger: selection)
     }
 
-    /// Small gradient that hints at each look's palette.
+    /// Small gradient that hints at each look's palette. These are previews of
+    /// the image a look produces (content), not interface colors, so they stay literal.
     static func swatch(_ look: VideoLook) -> LinearGradient {
         let colors: [Color] = switch look {
         case .none: [Color(white: 0.35), Color(white: 0.6)]

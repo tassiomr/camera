@@ -8,9 +8,13 @@
   <meta property="og:title" content="Luminous Cam">
   <meta property="og:description" content="Seu iPhone, com alma de cinema.">
   <meta property="og:image" content="/assets/icon.png">
-  <meta name="theme-color" content="#06070a">
   <link rel="icon" href="/assets/icon-256.png">
   <link rel="apple-touch-icon" href="/assets/icon-256.png">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <script src="/tr-mode.js"></script>
+  <link rel="stylesheet" href="/tr-tokens.css">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -46,7 +50,7 @@
         </div>
 
         <div class="phone-stage" aria-hidden="true">
-          <div class="phone">
+          <div class="phone" data-tr-lock="dark"><script>trApplyMode()</script>
             <div class="screen">
               <div class="island"></div>
               <div class="status"><span><span class="rec-dot"></span><b>00:01:24</b></span><span>4K · 24 · LOG</span><span>2h 10m</span></div>
@@ -163,7 +167,7 @@
           <div class="look"><div class="sw" style="--sw:radial-gradient(circle at 60% 40%,#bbb,#333 55%,#000)"></div>Noir</div>
           <div class="look"><div class="sw" style="--sw:linear-gradient(135deg,#1b3a5c,#e0b04a,#d8402c)"></div>Chrome</div>
           <div class="look"><div class="sw" style="--sw:radial-gradient(circle at 40% 40%,#ffe2f0,#c9a4e8 50%,#7a7ad8)"></div>Dream</div>
-          <div class="look"><div class="sw" style="--sw:conic-gradient(from 200deg,#3ee3c1,#5c8cff,#8f7bff,#3ee3c1)"></div>Original</div>
+          <div class="look"><div class="sw" style="--sw:conic-gradient(from 200deg,var(--tr-action-primary),var(--tr-action-accent),var(--tr-action-primary))"></div>Original</div>
         </div>
       </div>
     </section>

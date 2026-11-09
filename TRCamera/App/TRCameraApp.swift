@@ -1,4 +1,5 @@
 import SwiftUI
+import TRDesignSystem
 
 @main
 struct TRCameraApp: App {
@@ -7,6 +8,7 @@ struct TRCameraApp: App {
     var body: some Scene {
         WindowGroup {
             CameraScreen(model: model)
+                .trTheme(.app)
         }
     }
 }

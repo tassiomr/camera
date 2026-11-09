@@ -1,4 +1,5 @@
 import SwiftUI
+import TRDesignSystem
 
 enum CameraSheet: String, Identifiable {
     case settings, presets, library, capabilities
@@ -11,28 +12,36 @@ struct CameraScreen: View {
     @State private var focusIndicator: CGPoint?
     @State private var pinchStartZoom: Double = 1
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.trTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         GeometryReader { geo in
             let landscape = DebugLaunch.forceLandscape || geo.size.width > geo.size.height
             ZStack {
-                Theme.background.ignoresSafeArea()
                 switch model.phase {
                 case .launching:
-                    LaunchStateView()
+                    TRStateView(.loading, title: "Analisando as câmeras deste iPhone…")
                 case .cameraDenied:
                     PermissionDeniedView()
                 case .noCamera:
-                    MessageStateView(icon: "video.slash", title: "Câmera indisponível", message: "Nenhuma câmera de vídeo foi encontrada neste dispositivo.")
+                    TRStateView(.error, title: "Câmera indisponível", message: "Nenhuma câmera de vídeo foi encontrada neste dispositivo.",
+                                icon: .cameraUnavailable)
                 case .ready:
                     Group { if landscape { landscapeLayout } else { portraitLayout } }
                         .onAppear { model.setDemoPortrait(!landscape) }
                         .onChange(of: landscape) { _, value in model.setDemoPortrait(!value) }
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(theme.colors.background.primary)
             .modifier(DebugLandscapeModifier(size: geo.size))
         }
-        .preferredColorScheme(.dark)
+        // The viewfinder is dark in every appearance (it frames a live image);
+        // only this subtree is forced dark, so sheets follow the system.
+        .environment(\.colorScheme, .dark)
+        // Keeps the HUD layout intact at the largest text sizes.
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
         .task {
@@ -49,23 +58,28 @@ struct CameraScreen: View {
                 case .capabilities: CapabilityReportView(capabilities: model.capabilities)
                 }
             }
-            .preferredColorScheme(.dark)
+            .trTheme(theme)
         }
+    }
+
+    private func animate(_ change: () -> Void) {
+        withTRAnimation(.snappy, reduceMotion: reduceMotion, change)
     }
 
     // MARK: Layouts
 
     private var portraitLayout: some View {
-        VStack(spacing: 10) {
-            statusBar.padding(.horizontal, 12)
+        VStack(spacing: theme.spacing.stack.regular) {
+            statusBar.padding(.horizontal, theme.spacing.sm)
             toolRow
             preview
                 .frame(maxHeight: .infinity)
-                .overlay(alignment: .bottom) { overlayPanel.padding(8) }
-                .padding(.horizontal, 6)
+                .overlay(alignment: .bottom) { overlayPanel.padding(theme.spacing.xs) }
+                .padding(.horizontal, theme.spacing.xxs)
             if model.mode == .pro {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) { ParameterCards(model: model, compact: true) }.padding(.horizontal, 12)
+                    HStack(spacing: theme.spacing.stack.regular) { ParameterCards(model: model, compact: true) }
+                        .padding(.horizontal, theme.spacing.sm)
                 }
             }
             lensRow
@@ -76,121 +90,125 @@ struct CameraScreen: View {
                 Spacer()
                 modeButton
             }
-            .padding(.horizontal, 28)
-            .padding(.bottom, 4)
+            .padding(.horizontal, theme.spacing.lg)
+            .padding(.bottom, theme.spacing.xxs)
         }
     }
 
     private var landscapeLayout: some View {
-        HStack(spacing: 8) {
-            VStack(spacing: 8) {
+        HStack(spacing: theme.spacing.stack.regular) {
+            VStack(spacing: theme.spacing.stack.regular) {
                 lensInfo
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: 8) { lensButtons(vertical: true) }
+                    VStack(spacing: theme.spacing.stack.regular) { lensButtons(vertical: true) }
                 }
                 zoomButtons(vertical: true)
             }
             .frame(width: 84)
-            .padding(.vertical, 10)
-            .background(RoundedRectangle(cornerRadius: Theme.corner).fill(Theme.panel))
+            .padding(.vertical, theme.spacing.sm)
+            .background(RoundedRectangle.tr(theme.shape.card).fill(theme.colors.background.secondary))
 
-            VStack(spacing: 8) {
+            VStack(spacing: theme.spacing.stack.regular) {
                 statusBar
                 toolRow
-                preview.overlay(alignment: .bottom) { overlayPanel.padding(8) }
+                preview.overlay(alignment: .bottom) { overlayPanel.padding(theme.spacing.xs) }
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: theme.spacing.stack.regular) {
                 if model.mode == .pro {
                     ScrollView(showsIndicators: false) {
-                        VStack(spacing: 8) { ParameterCards(model: model, compact: false) }
+                        VStack(spacing: theme.spacing.stack.regular) { ParameterCards(model: model, compact: false) }
                     }
                     .frame(width: 168)
                 }
-                VStack(spacing: 12) {
+                VStack(spacing: theme.spacing.sm) {
                     modeButton
                     Spacer()
                     RecordButton(isRecording: model.isRecording, action: model.toggleRecording)
-                    Text(model.isRecording ? "REC" : "VIDEO").font(Theme.label(11)).foregroundStyle(model.isRecording ? Theme.recording : Theme.accent)
+                    Text(model.isRecording ? "REC" : "VIDEO")
+                        .trTextStyle(.overline)
+                        .foregroundStyle(model.isRecording ? theme.colors.feedback.error : theme.colors.foreground.accent)
                     Spacer()
                     libraryButton
                 }
                 .frame(width: 84)
             }
-            .padding(8)
-            .background(RoundedRectangle(cornerRadius: Theme.corner).fill(Theme.panel))
+            .padding(theme.spacing.xs)
+            .background(RoundedRectangle.tr(theme.shape.card).fill(theme.colors.background.secondary))
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, theme.spacing.xs)
     }
 
     // MARK: Status & tools
 
     /// One readable line: what is being recorded, how much time is left, settings.
     private var statusBar: some View {
-        HStack(spacing: 10) {
+        let c = theme.colors
+        return HStack(spacing: theme.spacing.stack.regular) {
             if model.isRecording {
-                HStack(spacing: 6) {
-                    Circle().fill(Theme.recording).frame(width: 8, height: 8)
-                    Text(Self.timecode(model.telemetry.recordedSeconds)).font(Theme.value(15))
+                HStack(spacing: theme.spacing.xxs) {
+                    Circle().fill(c.recording).frame(width: 8, height: 8)
+                    Text(Self.timecode(model.telemetry.recordedSeconds)).trTextStyle(.metricSmall)
                 }
+                .foregroundStyle(c.foreground.primary)
                 .fixedSize()
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Gravando \(Self.timecode(model.telemetry.recordedSeconds))")
             }
             Button { sheet = .settings } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: theme.spacing.xxs) {
                     Text(model.configuration.summary)
-                        .font(.system(size: 13, weight: .semibold, design: .rounded).monospacedDigit())
-                        .lineLimit(1).minimumScaleFactor(0.75)
-                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).foregroundStyle(Theme.textSecondary)
+                        .trTextStyle(.metricSmall)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                    TRIconView(.chevronDown, size: .small).foregroundStyle(c.foreground.secondary)
                 }
-                .foregroundStyle(Theme.textPrimary)
+                .foregroundStyle(c.foreground.primary)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Formato de gravação: \(model.configuration.summary). Abrir configurações")
-            Spacer(minLength: 4)
+            Spacer(minLength: theme.spacing.xxs)
             if model.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue {
-                Image(systemName: "thermometer.high").foregroundStyle(Theme.recording)
+                Image(systemName: "thermometer.high").foregroundStyle(c.feedback.error)
+                    .accessibilityLabel("Temperatura alta")
             }
             if let minutes = model.estimatedMinutesRemaining {
                 Label(StorageEstimator.format(minutes: minutes), systemImage: model.destination == .appStorage ? "internaldrive" : "externaldrive")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(minutes < 10 ? Theme.warning : Theme.textSecondary)
+                    .trTextStyle(.footnote)
+                    .fontWeight(.semibold)
+                    .monospacedDigit()
+                    .foregroundStyle(minutes < 10 ? c.feedback.warning : c.foreground.secondary)
                     .fixedSize()
             }
-            Button { sheet = .settings } label: {
-                Image(systemName: "gearshape.fill").font(.system(size: 16, weight: .semibold))
-                    .frame(width: 36, height: 36).background(Circle().fill(Theme.card))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Configurações")
+            TRIconButton(.settings, label: "Configurações", variant: .secondary, size: .small) { sheet = .settings }
         }
-        .frame(height: 40)
+        .frame(minHeight: theme.metrics.minimumHitTarget)
     }
 
     /// Monitoring tools as labelled chips. Scrolls instead of truncating.
     private var toolRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ChipButton(title: model.monitoring.look == .none ? "Filtro" : model.monitoring.look.title,
-                           isOn: model.showLookPicker || model.monitoring.look != .none, systemImage: "camera.filters") {
-                    withAnimation(.snappy) { model.showLookPicker.toggle(); if model.showLookPicker { model.activePanel = nil } }
-                }
-                ChipButton(title: "Presets", systemImage: "square.stack.3d.up") { sheet = .presets }
+            HStack(spacing: theme.spacing.stack.regular) {
+                TRTag(verbatim: model.monitoring.look == .none ? "Filtro" : model.monitoring.look.title, icon: .lookFilter,
+                      isSelected: model.showLookPicker || model.monitoring.look != .none, onTap: {
+                    animate { model.showLookPicker.toggle(); if model.showLookPicker { model.activePanel = nil } }
+                })
+                TRTag(verbatim: "Presets", icon: .presets, onTap: { sheet = .presets })
                 beatMenu
                 if model.mode == .pro {
-                    ChipButton(title: "Zebra", isOn: model.monitoring.zebraEnabled, systemImage: "line.diagonal") { model.monitoring.zebraEnabled.toggle() }
-                    ChipButton(title: "Peaking", isOn: model.monitoring.peakingEnabled, systemImage: "scope") { model.monitoring.peakingEnabled.toggle() }
-                    ChipButton(title: "False color", isOn: model.monitoring.falseColorEnabled, systemImage: "paintpalette") { model.monitoring.falseColorEnabled.toggle() }
+                    TRTag(verbatim: "Zebra", icon: .zebra, isSelected: model.monitoring.zebraEnabled, onTap: { model.monitoring.zebraEnabled.toggle() })
+                    TRTag(verbatim: "Peaking", icon: .peaking, isSelected: model.monitoring.peakingEnabled, onTap: { model.monitoring.peakingEnabled.toggle() })
+                    TRTag(verbatim: "False color", icon: .falseColor, isSelected: model.monitoring.falseColorEnabled, onTap: { model.monitoring.falseColorEnabled.toggle() })
                     if model.configuration.colorProfile.isLog {
-                        ChipButton(title: "LUT 709", isOn: model.monitoring.lutID != nil, systemImage: "cube") {
+                        TRTag(verbatim: "LUT 709", icon: .lut, isSelected: model.monitoring.lutID != nil, onTap: {
                             model.monitoring.lutID = model.monitoring.lutID == nil ? BuiltInLUT.appleLogTo709.id : nil
-                        }
+                        })
                     }
-                    ChipButton(title: "Histograma", isOn: model.monitoring.histogramEnabled, systemImage: "chart.bar") { model.monitoring.histogramEnabled.toggle() }
-                    ChipButton(title: "Waveform", isOn: model.monitoring.waveformEnabled, systemImage: "waveform.path.ecg") { model.monitoring.waveformEnabled.toggle() }
+                    TRTag(verbatim: "Histograma", icon: .histogram, isSelected: model.monitoring.histogramEnabled, onTap: { model.monitoring.histogramEnabled.toggle() })
+                    TRTag(verbatim: "Waveform", icon: .waveformScope, isSelected: model.monitoring.waveformEnabled, onTap: { model.monitoring.waveformEnabled.toggle() })
                 }
-                ChipButton(title: "Lente", systemImage: "cpu") { sheet = .capabilities }
+                TRTag(verbatim: "Lente", icon: .lensProfile, onTap: { sheet = .capabilities })
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, theme.spacing.sm)
         }
     }
 
@@ -203,14 +221,10 @@ struct CameraScreen: View {
             }
             Text("Só no preview. O vídeo é gravado limpo.")
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "metronome").font(.system(size: 12, weight: .semibold))
-                Text(beatTitle).font(.system(size: 12, weight: .semibold)).lineLimit(1).monospacedDigit()
-            }
-            .fixedSize()
-            .padding(.horizontal, 12).frame(height: 34)
-            .foregroundStyle(model.beatEffect != .off ? Color.black : Theme.textPrimary)
-            .background(Capsule().fill(model.beatEffect != .off ? Theme.accent : Theme.card))
+            // The tag is only the look; the Menu handles the tap.
+            TRTag(verbatim: beatTitle, icon: .beat, isSelected: model.beatEffect != .off)
+                .monospacedDigit()
+                .allowsHitTesting(false)
         }
         .disabled(model.isRecording && model.beatEffect == .off)
         .accessibilityLabel("Efeito na batida da música")
@@ -225,7 +239,9 @@ struct CameraScreen: View {
     // MARK: Preview
 
     private var preview: some View {
-        ZStack {
+        let c = theme.colors
+        let shape = RoundedRectangle.tr(theme.shape.card)
+        return ZStack {
             PreviewContainer(engine: model.engine, showsProcessed: model.showsProcessedPreview || model.isDemo,
                              onTap: { layerPoint, devicePoint in
                                  model.focus(at: devicePoint)
@@ -238,7 +254,7 @@ struct CameraScreen: View {
                              })
             GuidesOverlay(settings: model.monitoring, videoAspect: videoAspect, roll: model.roll)
             if let p = focusIndicator {
-                RoundedRectangle(cornerRadius: 4).stroke(Theme.accent, lineWidth: 1.5)
+                RoundedRectangle.tr(theme.shape.small).stroke(c.foreground.accent, lineWidth: 1.5)
                     .frame(width: 70, height: 70).position(p).allowsHitTesting(false)
             }
             VStack {
@@ -246,36 +262,36 @@ struct CameraScreen: View {
                     scopes
                     Spacer()
                     if !model.telemetry.audioAverageDB.isEmpty {
-                        AudioMeterView(average: model.telemetry.audioAverageDB, peak: model.telemetry.audioPeakDB).frame(height: 70)
+                        AudioMeterView(average: model.telemetry.audioAverageDB, peak: model.telemetry.audioPeakDB)
                     }
                 }
                 Spacer()
-                if let banner = model.banner { BannerView(banner: banner).transition(.move(edge: .bottom).combined(with: .opacity)) }
+                if let banner = model.banner { BannerView(banner: banner).trTransition(.slide(.bottom)) }
             }
-            .padding(8)
+            .padding(theme.spacing.xs)
             if let job = model.postProcess {
                 PostProcessPill(status: job)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .padding(.top, 10)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .padding(.top, theme.spacing.sm)
+                    .trTransition(.slide(.top))
                     .allowsHitTesting(false)
             }
             if model.isDemo {
-                Text("DEMO").font(Theme.label(9)).padding(.horizontal, 6).padding(.vertical, 3)
-                    .background(Capsule().fill(Theme.warning)).foregroundStyle(.black)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(.top, 84).padding(.trailing, 10)
+                TRBadge(verbatim: "DEMO", tone: .warning, emphasis: .solid)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .padding(.top, 84).padding(.trailing, theme.spacing.sm)
                     .allowsHitTesting(false)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
-        .overlay(RoundedRectangle(cornerRadius: Theme.corner).stroke(model.isRecording ? Theme.recording : .clear, lineWidth: 2))
-        .animation(.snappy, value: model.banner)
-        .animation(.snappy, value: model.postProcess == nil)
+        .clipShape(shape)
+        .overlay(shape.strokeBorder(c.recording.opacity(model.isRecording ? 1 : 0), lineWidth: TRBorder.emphasized))
+        .trAnimation(.snappy, value: model.banner)
+        .trAnimation(.snappy, value: model.postProcess == nil)
     }
 
     @ViewBuilder private var scopes: some View {
         if !model.auxiliaryToolsSuspended {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: theme.spacing.stack.regular) {
                 if model.monitoring.histogramEnabled { HistogramView(data: model.scopes).frame(width: 120, height: 56) }
                 if model.monitoring.waveformEnabled { WaveformView(data: model.scopes).frame(width: 120, height: 64) }
             }
@@ -286,12 +302,12 @@ struct CameraScreen: View {
         if model.showLookPicker {
             LookPicker(selection: $model.monitoring.look)
                 .frame(maxWidth: 560)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .trTransition(.slide(.bottom))
         } else if let panel = model.activePanel {
             ParameterAdjustPanel(model: model, panel: panel)
                 .id(panel)
                 .frame(maxWidth: 520)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .trTransition(.slide(.bottom))
         }
     }
 
@@ -306,60 +322,52 @@ struct CameraScreen: View {
     // MARK: Lenses & zoom
 
     private var lensInfo: some View {
-        VStack(spacing: 3) {
-            Image(systemName: "camera.aperture").foregroundStyle(Theme.accent)
+        let c = theme.colors
+        return VStack(spacing: theme.spacing.xxxs) {
+            Image(systemName: "camera.aperture").foregroundStyle(c.foreground.accent)
             if let f = model.equivalentFocalLength {
-                Text("\(Int(f.rounded())) mm").font(Theme.value(14)).foregroundStyle(Theme.textPrimary)
+                Text("\(Int(f.rounded())) mm").trTextStyle(.metricSmall).foregroundStyle(c.foreground.primary)
             }
-            Text(model.isDigitalZoom ? "DIGITAL" : (model.camera?.lens.label.uppercased() ?? ""))
-                .font(Theme.label(9)).foregroundStyle(model.isDigitalZoom ? Theme.warning : Theme.textSecondary)
+            Text(model.isDigitalZoom ? "Digital" : (model.camera?.lens.label ?? ""))
+                .trTextStyle(.overline)
+                .foregroundStyle(model.isDigitalZoom ? c.feedback.warning : c.foreground.secondary)
         }
     }
 
     private func lensButtons(vertical: Bool) -> some View {
         ForEach(model.selectableCameras.filter { !$0.isVirtual || $0.lens == .virtualMulti }) { cam in
-            let selected = cam.id == model.camera?.id
-            Button { model.select(camera: cam) } label: {
-                Text(Self.lensLabel(cam))
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .lineLimit(1).fixedSize()
-                    .padding(.horizontal, 12)
-                    .frame(minWidth: vertical ? 68 : 0, minHeight: 38)
-                    .background(Capsule().fill(selected ? Theme.accent : Theme.card))
-                    .foregroundStyle(selected ? .black : .white)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Lente \(cam.lens.label)")
+            TRTag(verbatim: Self.lensLabel(cam), isSelected: cam.id == model.camera?.id, onTap: { model.select(camera: cam) })
+                .fixedSize()
+                .accessibilityLabel("Lente \(cam.lens.label)")
         }
     }
 
     @ViewBuilder private func zoomButtons(vertical: Bool) -> some View {
         let content = Group {
             ForEach(model.zoomPresets, id: \.factor) { preset in
-                let selected = abs(model.telemetry.zoom - preset.factor) < 0.05
-                Button { model.engine.setZoom(preset.factor, rate: 4) } label: {
-                    Text(preset.label).font(.system(size: 12, weight: .bold, design: .rounded))
-                        .frame(width: 40, height: 32)
-                        .background(Capsule().fill(selected ? Theme.accentDeep : Theme.card))
-                }.buttonStyle(.plain)
+                TRTag(verbatim: preset.label, isSelected: abs(model.telemetry.zoom - preset.factor) < 0.05, onTap: {
+                    model.engine.setZoom(preset.factor, rate: 4)
+                })
+                .fixedSize()
             }
-            Button { withAnimation(.snappy) { model.showLookPicker = false; model.activePanel = model.activePanel == .zoom ? nil : .zoom } } label: {
-                Image(systemName: "plus.magnifyingglass").frame(width: 40, height: 32)
-                    .background(Capsule().fill(model.activePanel == .zoom ? Theme.accentDeep : Theme.card))
-            }.buttonStyle(.plain)
-            .accessibilityLabel("Zoom contínuo")
+            TRIconButton(.zoomContinuous, label: "Zoom contínuo", variant: model.activePanel == .zoom ? .primary : .secondary, size: .small) {
+                animate { model.showLookPicker = false; model.activePanel = model.activePanel == .zoom ? nil : .zoom }
+            }
         }
-        if vertical { VStack(spacing: 6) { content } } else { HStack(spacing: 6) { content } }
+        if vertical {
+            VStack(spacing: theme.spacing.stack.regular) { content }
+        } else {
+            HStack(spacing: theme.spacing.stack.tight) { content }
+        }
     }
 
     private var lensRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: theme.spacing.stack.regular) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) { lensButtons(vertical: false) }.padding(.leading, 12)
+                HStack(spacing: theme.spacing.stack.regular) { lensButtons(vertical: false) }.padding(.leading, theme.spacing.sm)
             }
-            zoomButtons(vertical: false).padding(.trailing, 12)
+            zoomButtons(vertical: false).padding(.trailing, theme.spacing.sm)
         }
-        .foregroundStyle(.white)
     }
 
     /// Lenses are named by their 35 mm equivalent focal length (what filmmakers use).
@@ -377,25 +385,20 @@ struct CameraScreen: View {
     // MARK: Buttons
 
     private var modeButton: some View {
-        Button { withAnimation(.snappy) { model.mode = model.mode == .pro ? .simple : .pro } } label: {
-            Text(model.mode == .pro ? "PRO" : "AUTO")
-                .font(Theme.label(11))
-                .frame(width: 52, height: 52)
-                .background(Circle().fill(model.mode == .pro ? Theme.card : Theme.accentDeep))
-                .overlay(Circle().stroke(Theme.accent.opacity(0.5), lineWidth: 1))
-                .foregroundStyle(.white)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(model.mode == .pro ? "Modo Pro. Tocar para modo simples" : "Modo simples. Tocar para modo Pro")
+        Button(model.mode == .pro ? "PRO" : "AUTO") { animate { model.mode = model.mode == .pro ? .simple : .pro } }
+            .buttonStyle(.tr(.secondary, size: .large))
+            .accessibilityLabel(model.mode == .pro ? "Modo Pro. Tocar para modo simples" : "Modo simples. Tocar para modo Pro")
     }
 
     private var libraryButton: some View {
-        Button { sheet = .library } label: {
+        let shape = RoundedRectangle.tr(theme.shape.control)
+        return Button { sheet = .library } label: {
             ThumbnailView(url: model.lastRecording?.url)
                 .frame(width: 52, height: 52)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.accent.opacity(0.6), lineWidth: 1))
-        }.buttonStyle(.plain)
+                .clipShape(shape)
+                .overlay(shape.strokeBorder(theme.colors.border.default, lineWidth: TRBorder.default))
+        }
+        .buttonStyle(.plain)
         .accessibilityLabel("Biblioteca de vídeos")
     }
 
@@ -439,32 +442,38 @@ struct DebugLandscapeModifier: ViewModifier {
 
 struct BannerView: View {
     var banner: Banner
+
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: banner.kind == .error ? "exclamationmark.octagon.fill" : banner.kind == .warning ? "exclamationmark.triangle.fill" : "info.circle.fill")
-                .foregroundStyle(banner.kind == .error ? Theme.recording : banner.kind == .warning ? Theme.warning : Theme.accent)
-            Text(banner.message).font(.system(size: 13, weight: .medium)).foregroundStyle(.white).multilineTextAlignment(.leading)
-            Spacer(minLength: 0)
+        TRBanner(LocalizedStringKey(banner.message), tone: tone)
+            .frame(maxWidth: 520)
+    }
+
+    private var tone: TRTone {
+        switch banner.kind {
+        case .info: .info
+        case .warning: .warning
+        case .error: .error
         }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.black.opacity(0.8)))
-        .frame(maxWidth: 520)
     }
 }
 
 /// Shown while the chosen filter is being applied to a just-recorded clip.
 struct PostProcessPill: View {
+    @Environment(\.trTheme) private var theme
     var status: PostProcessStatus
+
     var body: some View {
-        HStack(spacing: 8) {
+        let c = theme.colors
+        HStack(spacing: theme.spacing.stack.regular) {
             ProgressView(value: status.progress)
-                .progressViewStyle(.circular).tint(Theme.accent).controlSize(.small)
+                .progressViewStyle(.circular).controlSize(.small)
             Text("Aplicando \(status.title)… \(Int(status.progress * 100))%\(status.remaining > 1 ? " · +\(status.remaining - 1)" : "")")
-                .font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                .trTextStyle(.footnote).fontWeight(.semibold).monospacedDigit()
+                .foregroundStyle(c.foreground.primary)
         }
-        .padding(.horizontal, 12).frame(height: 32)
-        .background(Capsule().fill(.black.opacity(0.75)))
-        .overlay(Capsule().stroke(Theme.accent.opacity(0.5), lineWidth: 1))
+        .padding(.horizontal, theme.spacing.sm)
+        .frame(minHeight: theme.metrics.height(.small))
+        .trSurface(.overlay, in: Capsule())
         .accessibilityElement(children: .combine)
     }
 }
@@ -472,17 +481,19 @@ struct PostProcessPill: View {
 /// Fills whatever frame it is given and never draws outside it: the image is an
 /// overlay of a flexible background, so scaledToFill cannot grow the layout.
 struct ThumbnailView: View {
+    @Environment(\.trTheme) private var theme
     var url: URL?
     @State private var image: UIImage?
     private static let cache = NSCache<NSURL, UIImage>()
 
     var body: some View {
-        Theme.card
+        Rectangle()
+            .fill(theme.colors.background.tertiary)
             .overlay {
                 if let image {
                     Image(uiImage: image).resizable().scaledToFill()
                 } else {
-                    Image(systemName: "film").foregroundStyle(Theme.textSecondary)
+                    TRIconView(.film).foregroundStyle(theme.colors.foreground.tertiary)
                 }
             }
             .clipped()
@@ -500,37 +511,13 @@ struct ThumbnailView: View {
     static func invalidate(_ url: URL) { cache.removeObject(forKey: url as NSURL) }
 }
 
-struct LaunchStateView: View {
-    var body: some View {
-        VStack(spacing: 14) {
-            ProgressView().tint(Theme.accent)
-            Text("Analisando as câmeras deste iPhone…").font(.footnote).foregroundStyle(Theme.textSecondary)
-        }
-    }
-}
-
-struct MessageStateView: View {
-    var icon: String
-    var title: String
-    var message: String
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: icon).font(.system(size: 40)).foregroundStyle(Theme.accent)
-            Text(title).font(.title3.bold())
-            Text(message).font(.callout).foregroundStyle(Theme.textSecondary).multilineTextAlignment(.center)
-        }.padding(32)
-    }
-}
-
 struct PermissionDeniedView: View {
     var body: some View {
-        VStack(spacing: 16) {
-            MessageStateView(icon: "video.badge.ellipsis", title: "Acesso à câmera necessário",
-                             message: "O Luminous Cam precisa da câmera para gravar. Tudo é processado localmente — nada é enviado para servidores.")
-            Button("Abrir Ajustes") {
-                if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
-            }
-            .buttonStyle(.borderedProminent).tint(Theme.accent).foregroundStyle(.black)
-        }
+        TRStateView(.error, title: "Acesso à câmera necessário",
+                    message: "O Luminous Cam precisa da câmera para gravar. Tudo é processado localmente — nada é enviado para servidores.",
+                    icon: .cameraPermission,
+                    action: .init("Abrir Ajustes") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                    })
     }
 }

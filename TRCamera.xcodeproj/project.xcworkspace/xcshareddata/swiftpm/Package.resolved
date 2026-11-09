@@ -1,0 +1,15 @@
+{
+  "originHash" : "8a594512c7ef4fa25f6454a7d64a91af12aa8a7140ba8f34fd79310585314ff3",
+  "pins" : [
+    {
+      "identity" : "trdesignsystem",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tassiomr/TRDesignSystem.git",
+      "state" : {
+        "revision" : "1bf322724f451b1a1735c316581a2fbeebc73600",
+        "version" : "0.2.0"
+      }
+    }
+  ],
+  "version" : 3
+}

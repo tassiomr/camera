@@ -1,9 +1,11 @@
 import SwiftUI
+import TRDesignSystem
 
 /// The column/row of professional parameter cards (ISO, shutter, WB, focus, aperture).
 struct ParameterCards: View {
     @Bindable var model: CameraViewModel
     var compact: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let t = model.telemetry
@@ -52,7 +54,7 @@ struct ParameterCards: View {
     }
 
     private func toggle(_ panel: ParameterPanel) {
-        withAnimation(.snappy) { model.activePanel = model.activePanel == panel ? nil : panel }
+        withTRAnimation(.snappy, reduceMotion: reduceMotion) { model.activePanel = model.activePanel == panel ? nil : panel }
     }
 }
 
@@ -60,27 +62,28 @@ struct ParameterCards: View {
 struct ParameterAdjustPanel: View {
     @Bindable var model: CameraViewModel
     let panel: ParameterPanel
+    @Environment(\.trTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var index = 0
     @State private var focusA: Float?
     @State private var focusB: Float?
     @State private var zoomSpeed: Float = 2
 
     var body: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Text(title).font(Theme.label(11)).foregroundStyle(Theme.textSecondary)
+        VStack(spacing: theme.spacing.stack.regular) {
+            HStack(spacing: theme.spacing.stack.regular) {
+                Text(title).trTextStyle(.overline).foregroundStyle(theme.colors.foreground.secondary)
                 Spacer()
                 accessory
-                Button { withAnimation(.snappy) { model.activePanel = nil } } label: {
-                    Image(systemName: "xmark").font(.system(size: 12, weight: .bold)).frame(width: 28, height: 28)
-                        .background(Circle().fill(Theme.card))
-                }.buttonStyle(.plain)
+                TRIconButton(.close, label: "Fechar ajuste", variant: .secondary, size: .small) {
+                    withTRAnimation(.snappy, reduceMotion: reduceMotion) { model.activePanel = nil }
+                }
             }
             dial
             extra
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: Theme.corner).fill(Color.black.opacity(0.85)))
+        .padding(theme.spacing.inset.tight + theme.spacing.xxs)
+        .previewPanelBackground()
         .onAppear(perform: syncIndex)
         .onChange(of: model.showShutterAsAngle) { syncIndex() }
     }
@@ -100,11 +103,11 @@ struct ParameterAdjustPanel: View {
     @ViewBuilder private var accessory: some View {
         switch panel {
         case .shutter:
-            ChipButton(title: model.showShutterAsAngle ? "ANGLE" : "SPEED", isOn: true) { model.showShutterAsAngle.toggle() }
+            TRTag(verbatim: model.showShutterAsAngle ? "Angle" : "Speed", icon: .sort, onTap: { model.showShutterAsAngle.toggle() })
         case .exposureBias:
-            ChipButton(title: "AE LOCK", isOn: model.aeLocked) { model.aeLocked.toggle(); model.engine.setAutoExposureLock(model.aeLocked) }
+            TRTag(verbatim: "AE Lock", isSelected: model.aeLocked, onTap: { model.aeLocked.toggle(); model.engine.setAutoExposureLock(model.aeLocked) })
         case .focus:
-            ChipButton(title: "PEAKING", isOn: model.monitoring.peakingEnabled) { model.monitoring.peakingEnabled.toggle() }
+            TRTag(verbatim: "Peaking", icon: .peaking, isSelected: model.monitoring.peakingEnabled, onTap: { model.monitoring.peakingEnabled.toggle() })
         default: EmptyView()
         }
     }
@@ -130,41 +133,46 @@ struct ParameterAdjustPanel: View {
     @ViewBuilder private var extra: some View {
         switch panel {
         case .whiteBalance:
-            HStack(spacing: 8) {
-                ForEach([(Float(3200), "lightbulb"), (4000, "light.panel"), (5600, "sun.max"), (6500, "cloud"), (7500, "building")], id: \.0) { k, icon in
-                    Button { model.kelvin = k; model.wbAuto = false; model.applyWhiteBalance(); syncIndex() } label: {
-                        Image(systemName: icon).frame(width: 36, height: 36)
-                            .background(Circle().fill(!model.wbAuto && model.kelvin == k ? Theme.accent : Theme.card))
-                            .foregroundStyle(!model.wbAuto && model.kelvin == k ? .black : .white)
-                    }.buttonStyle(.plain)
+            HStack(spacing: theme.spacing.stack.regular) {
+                ForEach(Self.lightPresets, id: \.kelvin) { preset in
+                    let selected = !model.wbAuto && model.kelvin == preset.kelvin
+                    TRIconButton(TRIcon("wb\(Int(preset.kelvin))", systemName: preset.symbol), label: "\(Int(preset.kelvin)) K",
+                                 variant: selected ? .primary : .secondary, size: .small) {
+                        model.kelvin = preset.kelvin; model.wbAuto = false; model.applyWhiteBalance(); syncIndex()
+                    }
+                    .accessibilityAddTraits(selected ? .isSelected : [])
                 }
                 Spacer()
-                Text("TINT").font(Theme.label(9)).foregroundStyle(Theme.textSecondary)
+                Text("Tint").trTextStyle(.overline).foregroundStyle(theme.colors.foreground.secondary)
                 Slider(value: $model.tint, in: -50...50, step: 1) { _ in model.wbAuto = false; model.applyWhiteBalance() }
-                    .frame(maxWidth: 120).tint(Theme.accent)
+                    .frame(maxWidth: 120)
             }
         case .focus:
-            HStack(spacing: 8) {
-                ChipButton(title: focusA.map { String(format: "A %.2f", $0) } ?? "SET A") { focusA = model.focusPosition }
-                ChipButton(title: focusB.map { String(format: "B %.2f", $0) } ?? "SET B") { focusB = model.focusPosition }
+            HStack(spacing: theme.spacing.stack.regular) {
+                TRTag(verbatim: focusA.map { String(format: "A %.2f", $0) } ?? "Marcar A", onTap: { focusA = model.focusPosition })
+                TRTag(verbatim: focusB.map { String(format: "B %.2f", $0) } ?? "Marcar B", onTap: { focusB = model.focusPosition })
                 Spacer()
-                ChipButton(title: "RACK", systemImage: "arrow.left.arrow.right") {
+                TRTag(verbatim: "Rack", icon: .rackFocus, onTap: {
                     guard let a = focusA, let b = focusB else { return }
                     let target = abs(model.focusPosition - a) < abs(model.focusPosition - b) ? b : a
                     model.focusAuto = false
                     model.focusPosition = target
                     model.applyFocus(rackDuration: 1.5)
                     syncIndex()
-                }
+                })
             }
         case .zoom:
-            HStack {
-                Text("VELOCIDADE").font(Theme.label(9)).foregroundStyle(Theme.textSecondary)
-                Slider(value: $zoomSpeed, in: 0.5...8).tint(Theme.accent)
+            HStack(spacing: theme.spacing.stack.regular) {
+                Text("Velocidade").trTextStyle(.overline).foregroundStyle(theme.colors.foreground.secondary)
+                Slider(value: $zoomSpeed, in: 0.5...8)
             }
         default: EmptyView()
         }
     }
+
+    private static let lightPresets: [(kelvin: Float, symbol: String)] = [
+        (3200, "lightbulb"), (4000, "light.panel"), (5600, "sun.max"), (6500, "cloud"), (7500, "building"),
+    ]
 
     private var apertureStops: [Float] {
         guard let range = model.format?.lensApertureRange else { return [] }
